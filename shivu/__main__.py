@@ -10,10 +10,10 @@ from telegram.ext import CommandHandler, CallbackContext, MessageHandler, filter
 
 from shivu import collection, top_global_groups_collection, group_user_totals_collection, user_collection, user_totals_collection, application, SUPPORT_CHAT, UPDATE_CHAT, db, LOGGER, shivuu
 
-# --- SABHI MODULES LOAD KAREIN ---
-# Is line ki wajah se hi aapke commands chalenge
+# --- MODULES LOADING ---
+# Dhyan rahe: Ye files (changetime.py, extras.py, settings.py) modules folder me honi chahiye
 from shivu.modules import upload, manage, start, help, harem, leaderboard, trade, extras, settings, changetime
-# ---------------------------------
+# -----------------------
 
 locks = {}
 message_counters = {}
@@ -31,29 +31,26 @@ async def message_counter(update: Update, context: CallbackContext) -> None:
     chat_id = str(update.effective_chat.id)
     user_id = update.effective_user.id
     
-    # Lock lagana taaki counting mein galti na ho
     if chat_id not in locks: locks[chat_id] = asyncio.Lock()
     async with locks[chat_id]:
         
-        # Database se frequency check karna (Default 100)
+        # Frequency Check
         chat_freq = await user_totals_collection.find_one({'chat_id': chat_id})
         msg_freq = chat_freq.get('message_frequency', 100) if chat_freq else 100
         
-        # Spam Protection
+        # Spam Logic
         if chat_id in last_user and last_user[chat_id]['user_id'] == user_id:
             last_user[chat_id]['count'] += 1
             if last_user[chat_id]['count'] >= 10:
                 if user_id not in warned_users or time.time() - warned_users[user_id] > 600:
-                    # Spam warning (Silent rakha hai taaki chat kharab na ho)
                     warned_users[user_id] = time.time()
                 return
         else:
             last_user[chat_id] = {'user_id': user_id, 'count': 1}
 
-        # Message Count Badhana
+        # Counting
         message_counts[chat_id] = message_counts.get(chat_id, 0) + 1
         
-        # Agar count frequency se match hua, toh character bhejo
         if message_counts[chat_id] % msg_freq == 0:
             await send_image(update, context)
             message_counts[chat_id] = 0
@@ -70,7 +67,7 @@ async def send_image(update: Update, context: CallbackContext) -> None:
     sent_characters[chat_id].append(character['id'])
     last_characters[chat_id] = character
     
-    # Spawn Time Note kiya
+    # Time Note kiya
     spawn_times[chat_id] = time.time()
 
     if chat_id in first_correct_guesses: del first_correct_guesses[chat_id]
@@ -82,41 +79,4 @@ async def send_image(update: Update, context: CallbackContext) -> None:
             caption=f"""A New {character['rarity']} Character Appeared...\n/guess Character Name and add in Your Harem""",
             parse_mode='Markdown'
         )
-    except Exception as e:
-        LOGGER.error(f"Error sending photo: {e}")
-
-async def guess(update: Update, context: CallbackContext) -> None:
-    chat_id = update.effective_chat.id
-    user_id = update.effective_user.id
-
-    if chat_id not in last_characters: return
-    if chat_id in first_correct_guesses:
-        await update.message.reply_text(f'❌️ Already Guessed...')
-        return
-
-    guess = ' '.join(context.args).lower() if context.args else ''
-    name_parts = last_characters[chat_id]['name'].lower().split()
-    
-    if sorted(name_parts) == sorted(guess.split()) or any(part == guess for part in name_parts):
-        first_correct_guesses[chat_id] = user_id
-        
-        # Time Calculation
-        time_taken = "Unknown"
-        if chat_id in spawn_times:
-            seconds = time.time() - spawn_times[chat_id]
-            time_taken = f"{seconds:.2f} seconds"
-
-        # Database Updates
-        user = await user_collection.find_one({'id': user_id})
-        if user:
-            await user_collection.update_one({'id': user_id}, {'$push': {'characters': last_characters[chat_id]}})
-        else:
-            await user_collection.insert_one({'id': user_id, 'first_name': update.effective_user.first_name, 'characters': [last_characters[chat_id]]})
-
-        await group_user_totals_collection.update_one({'user_id': user_id, 'group_id': chat_id}, {'$inc': {'count': 1}}, upsert=True)
-        await top_global_groups_collection.update_one({'group_id': chat_id}, {'$inc': {'count': 1}, '$set': {'group_name': update.effective_chat.title}}, upsert=True)
-
-        # Success Message
-        keyboard = [[InlineKeyboardButton(f"See Harem", switch_inline_query_current_chat=f"collection.{user_id}")]]
-        
-        await u
+    except Exception as
