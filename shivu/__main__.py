@@ -11,7 +11,7 @@ from telegram.ext import CommandHandler, CallbackContext, MessageHandler, filter
 from shivu import collection, top_global_groups_collection, group_user_totals_collection, user_collection, user_totals_collection, application, SUPPORT_CHAT, UPDATE_CHAT, db, LOGGER, shivuu
 
 # --- MODULES LOAD ---
-from shivu.modules import upload, manage, start, help, harem, leaderboard, trade
+from shivu.modules import upload, manage, start, help, harem, leaderboard, trade, extras, settings
 # --------------------
 
 locks = {}
