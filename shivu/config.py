@@ -8,7 +8,7 @@ class Config(object):
     TOKEN = "8578752843:AAHNWJAKLmZ_pc9tHPgyhUtnjOKxtXD6mM8"
     
 
-    mongo_url = "mongodb+srv://seasonking:admin123@cluster0.e5zbzap.mongodb.net/?appName=Cluster0"
+    mongo_url = "mongo_url = "mongodb+srv://seasonking:season_123@cluster0.e5zbzap.mongodb.net/?appName=Cluster0""
 
     CHARA_CHANNEL_ID = "-1003337112485"
     GROUP_ID = -1003337112485
