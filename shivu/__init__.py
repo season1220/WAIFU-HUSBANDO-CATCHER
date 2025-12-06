@@ -11,7 +11,7 @@ logging.basicConfig(
 LOGGER = logging.getLogger(__name__)
 
 # --- 2. CONFIG SETTINGS ---
-TOKEN = "8578752843:AAHNWJAKLmZ_pc9tHPgyhUtnjOKxtXD6mM8"
+TOKEN = "8578752843:AAFDF6aGAFJegXYrWGbFBbz2Cj_86I3zdF8"
 mongo_url = "mongodb+srv://seasonking:season_123@cluster0.e5zbzap.mongodb.net/?appName=Cluster0"
 OWNER_ID = 7164618867
 sudo_users = [7164618867]
