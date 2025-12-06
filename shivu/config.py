@@ -1,19 +1,21 @@
 class Config(object):
     LOGGER = True
 
-    # Owner aur Sudo
+    # Owner ID
     OWNER_ID = "7164618867"
     sudo_users = "7164618867"
 
     # Aapka Bot Token
     TOKEN = "8578752843:AAHNWJAKLmZ_pc9tHPgyhUtnjOKxtXD6mM8"
     
-    # Aapka Database Link (Ab ye bilkul sahi hai)
+    # Aapka Database Link
     mongo_url = "mongodb+srv://seasonking:season_123@cluster0.e5zbzap.mongodb.net/?appName=Cluster0"
 
-    # Channel IDs
-    CHARA_CHANNEL_ID = "-1003337112485"
-    GROUP_ID = -1003337112485
+    # "WAIFU UPLOADING" Channel ki ID (Yahan Uploads honge)
+    CHARA_CHANNEL_ID = "-1003352372209"
+    
+    # Filhal Group ID mein bhi Channel ID daal di hai taaki Error na aaye
+    GROUP_ID = -1003352372209
     
     # Bot Username
     BOT_USERNAME = "seasonwaifuBot"
