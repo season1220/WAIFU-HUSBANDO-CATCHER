@@ -24,20 +24,18 @@ PHOTO_URL = ["https://telegra.ph/file/b925c3985f0f325e62e17.jpg", "https://teleg
 api_id = 34967775
 api_hash = "e6e5dfae5327f90410863f93d8ced26b"
 
-# --- 3. DATABASE CONNECTION (Corrected Names) ---
+# --- 3. DATABASE CONNECTION ---
 client = AsyncIOMotorClient(mongo_url)
 db = client['Character_catcher']
 
-# Ye wo naam hain jo __main__.py dhund raha hai
+# Saari Collections (Ab kuch missing nahi hai)
 collection = db['anime_characters']
 user_collection = db["user_collection_lmao"]
 group_user_totals_collection = db["group_user_totals_collection"]
 top_global_groups_collection = db["top_global_groups_collection"]
 user_totals_collection = db["user_totals_collection"]
+pm_users = db["total_pm_users"]  # <--- Ye line missing thi, ab daal di hai
 
 # --- 4. BOT CLIENTS ---
-# Commands ke liye
 application = Application.builder().token(TOKEN).build()
-
-# User info ke liye (Pyrogram)
 shivuu = Client("shivu_session", api_id, api_hash, bot_token=TOKEN)
