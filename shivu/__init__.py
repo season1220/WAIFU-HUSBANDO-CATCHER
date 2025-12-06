@@ -3,14 +3,14 @@ from telegram.ext import Application
 from motor.motor_asyncio import AsyncIOMotorClient
 from shivu.config import Config
 
-# Logging Setup
+# 1. Logging Setup
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     level=logging.INFO,
 )
 LOGGER = logging.getLogger(__name__)
 
-# Config se Data lena
+# 2. Config se Data lena
 TOKEN = Config.TOKEN
 mongo_url = Config.mongo_url
 OWNER_ID = Config.OWNER_ID
@@ -21,8 +21,10 @@ UPDATE_CHAT = Config.UPDATE_CHAT
 BOT_USERNAME = Config.BOT_USERNAME
 GROUP_ID = Config.GROUP_ID
 PHOTO_URL = Config.PHOTO_URL
+api_id = Config.api_id
+api_hash = Config.api_hash
 
-# Database Connect karna
+# 3. Database Connect karna
 client = AsyncIOMotorClient(mongo_url)
 db = client['Character_catcher']
 collection = db['anime_characters']
@@ -31,8 +33,8 @@ group_user_collection = db["group_user_collection"]
 top_global_collection = db["top_global_collection"]
 pm_users = db["total_pm_users"]
 
-# Application Create karna
+# 4. Application Create karna
 application = Application.builder().token(TOKEN).build()
 
-# NOTE: Yahan se 'from shivu.modules import *' HATA DIYA GAYA HAI.
-# Ab ye __main__.py mein hoga.
+# NOTE: Maine yahan se 'from shivu.modules import *' hata diya hai.
+# Isse circular error khatam ho jayega.
