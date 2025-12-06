@@ -8,16 +8,13 @@ from html import escape
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import CommandHandler, CallbackContext, MessageHandler, filters
 
-# Ab import karte waqt error nahi aayega kyunki __init__ clean hai
-from shivu import collection, top_global_groups_collection, group_user_totals_collection, user_collection, user_totals_collection
-from shivu import application, SUPPORT_CHAT, UPDATE_CHAT, db, LOGGER, shivuu
+from shivu import collection, top_global_groups_collection, group_user_totals_collection, user_collection, user_totals_collection, application, SUPPORT_CHAT, UPDATE_CHAT, db, LOGGER, shivuu
 
-# --- MODULES LOAD ---
-# Yahan hum modules load karenge
-from shivu.modules import upload, manage, start, help
-# --------------------
+# Modules Loading
+from shivu.modules import ALL_MODULES
+for module_name in ALL_MODULES:
+    importlib.import_module("shivu.modules." + module_name)
 
-# --- GLOBAL VARS ---
 locks = {}
 message_counters = {}
 spam_counters = {}
@@ -64,12 +61,18 @@ async def send_image(update: Update, context: CallbackContext) -> None:
     last_characters[chat_id] = character
     if chat_id in first_correct_guesses: del first_correct_guesses[chat_id]
 
-    await context.bot.send_photo(
-        chat_id=chat_id,
-        photo=character['img_url'],
-        caption=f"""A New {character['rarity']} Character Appeared...\n/guess Character Name and add in Your Harem""",
-        parse_mode='Markdown'
-    )
+    # --- CRASH PROTECTION (Try/Except) ---
+    try:
+        await context.bot.send_photo(
+            chat_id=chat_id,
+            photo=character['img_url'],
+            caption=f"""A New {character['rarity']} Character Appeared...\n/guess Character Name and add in Your Harem""",
+            parse_mode='Markdown'
+        )
+    except Exception as e:
+        # Agar photo kharab hai toh bot crash nahi hoga, bas console me error dikhayega
+        LOGGER.error(f"Error sending character photo: {e}")
+        # Option: Aap chaho toh fallback message bhej sakte ho, par abhi ignore karte hain.
 
 async def guess(update: Update, context: CallbackContext) -> None:
     chat_id = update.effective_chat.id
@@ -109,9 +112,8 @@ async def fav(update: Update, context: CallbackContext) -> None:
     user = await user_collection.find_one({'id': user_id})
     if not user: return
     
-    # Check if user has character
-    has_char = next((c for c in user['characters'] if c['id'] == char_id), None)
-    if has_char:
+    character = next((c for c in user['characters'] if c['id'] == char_id), None)
+    if character:
         await user_collection.update_one({'id': user_id}, {'$set': {'favorites': [char_id]}})
         await update.message.reply_text(f'Character added to favorites.')
     else:
@@ -123,10 +125,7 @@ def main():
     application.add_handler(CommandHandler("fav", fav, block=False))
     application.add_handler(MessageHandler(filters.ALL, message_counter, block=False))
     
-    # Start Shivuu (Pyrogram) in background
     shivuu.start()
-    
-    # Start Application (PTB)
     application.run_polling(drop_pending_updates=True)
 
 if __name__ == "__main__":
