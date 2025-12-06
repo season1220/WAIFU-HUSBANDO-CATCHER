@@ -1,43 +1,42 @@
-import logging  
+import logging
 import os
-from pyrogram import Client 
 from telegram.ext import Application
 from motor.motor_asyncio import AsyncIOMotorClient
+from shivu.config import Config
 
+# 1. Logging Setup
 logging.basicConfig(
-    format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
-    handlers=[logging.FileHandler("log.txt"), logging.StreamHandler()],
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     level=logging.INFO,
 )
-
-logging.getLogger("apscheduler").setLevel(logging.ERROR)
-logging.getLogger('httpx').setLevel(logging.WARNING)
-logging.getLogger("pyrate_limiter").setLevel(logging.ERROR)
 LOGGER = logging.getLogger(__name__)
 
-from shivu.config import Development as Config
-
-
+# 2. Config se Data lena
+TOKEN = Config.TOKEN
 api_id = Config.api_id
 api_hash = Config.api_hash
-TOKEN = Config.TOKEN
-GROUP_ID = Config.GROUP_ID
-CHARA_CHANNEL_ID = Config.CHARA_CHANNEL_ID 
-mongo_url = Config.mongo_url 
-PHOTO_URL = Config.PHOTO_URL 
-SUPPORT_CHAT = Config.SUPPORT_CHAT 
-UPDATE_CHAT = Config.UPDATE_CHAT
-BOT_USERNAME = Config.BOT_USERNAME 
+mongo_url = Config.mongo_url
+OWNER_ID = Config.OWNER_ID
 sudo_users = Config.sudo_users
-OWNER_ID = Config.OWNER_ID 
+CHARA_CHANNEL_ID = Config.CHARA_CHANNEL_ID
+SUPPORT_CHAT = Config.SUPPORT_CHAT
+UPDATE_CHAT = Config.UPDATE_CHAT
+BOT_USERNAME = Config.BOT_USERNAME
+GROUP_ID = Config.GROUP_ID
+PHOTO_URL = Config.PHOTO_URL
 
+# 3. Application Create karna (Ye sabse pehle hona chahiye)
 application = Application.builder().token(TOKEN).build()
-shivuu = Client("Shivu", api_id, api_hash, bot_token=TOKEN)
-lol = AsyncIOMotorClient(mongo_url)
-db = lol['Character_catcher']
-collection = db['anime_characters_lol']
-user_totals_collection = db['user_totals_lmaoooo']
-user_collection = db["user_collection_lmaoooo"]
-group_user_totals_collection = db['group_user_totalsssssss']
-top_global_groups_collection = db['top_global_groups']
-pm_users = db['total_pm_users']
+
+# 4. Database Connect karna
+client = AsyncIOMotorClient(mongo_url)
+db = client['Character_catcher']
+collection = db['anime_characters']
+user_collection = db["user_collection_lmao"]
+group_user_collection = db["group_user_collection"]
+top_global_collection = db["top_global_collection"]
+pm_users = db["total_pm_users"]
+
+# 5. Modules Load karna (Ye SABSE END mein hona chahiye)
+# Agar ye upar chala gaya toh Circular Import Error aata hai
+from shivu.modules import *
