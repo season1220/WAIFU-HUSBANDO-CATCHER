@@ -1,207 +1,109 @@
-from pyrogram import filters
-from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import CommandHandler, CallbackContext, CallbackQueryHandler
+from shivu import application, user_collection
 
-from shivu import user_collection, shivuu
-
+# Temporary storage for trade requests
 pending_trades = {}
 
-
-@shivuu.on_message(filters.command("trade"))
-async def trade(client, message):
-    sender_id = message.from_user.id
-
-    if not message.reply_to_message:
-        await message.reply_text("You need to reply to a user's message to trade a character!")
+async def trade(update: Update, context: CallbackContext) -> None:
+    sender_id = update.effective_user.id
+    
+    if not update.message.reply_to_message:
+        await update.message.reply_text("⚠️ **Format:** Reply to user with `/trade [Your_Char_ID] [Their_Char_ID]`", parse_mode='Markdown')
         return
 
-    receiver_id = message.reply_to_message.from_user.id
-
+    receiver_id = update.message.reply_to_message.from_user.id
     if sender_id == receiver_id:
-        await message.reply_text("You can't trade a character with yourself!")
+        await update.message.reply_text("❌ Khud se trade nahi kar sakte.")
         return
 
-    if len(message.command) != 3:
-        await message.reply_text("You need to provide two character IDs!")
+    if len(context.args) != 2:
+        await update.message.reply_text("⚠️ **Format:** `/trade [Your_ID] [Their_ID]`")
         return
 
-    sender_character_id, receiver_character_id = message.command[1], message.command[2]
+    sender_char_id = context.args[0]
+    receiver_char_id = context.args[1]
 
+    # Check Ownership
     sender = await user_collection.find_one({'id': sender_id})
     receiver = await user_collection.find_one({'id': receiver_id})
 
-    sender_character = next((character for character in sender['characters'] if character['id'] == sender_character_id), None)
-    receiver_character = next((character for character in receiver['characters'] if character['id'] == receiver_character_id), None)
+    sender_char = next((c for c in sender['characters'] if c['id'] == sender_char_id), None)
+    receiver_char = next((c for c in receiver['characters'] if c['id'] == receiver_char_id), None)
 
-    if not sender_character:
-        await message.reply_text("You don't have the character you're trying to trade!")
+    if not sender_char:
+        await update.message.reply_text(f"❌ Aapke paas Character ID `{sender_char_id}` nahi hai.")
+        return
+    if not receiver_char:
+        await update.message.reply_text(f"❌ Unke paas Character ID `{receiver_char_id}` nahi hai.")
         return
 
-    if not receiver_character:
-        await message.reply_text("The other user doesn't have the character they're trying to trade!")
-        return
-
-
-
-
-
-
-    if len(message.command) != 3:
-        await message.reply_text("/trade [Your Character ID] [Other User Character ID]!")
-        return
-
-    sender_character_id, receiver_character_id = message.command[1], message.command[2]
-
-    
-    pending_trades[(sender_id, receiver_id)] = (sender_character_id, receiver_character_id)
-
-    
-    keyboard = InlineKeyboardMarkup(
-        [
-            [InlineKeyboardButton("Confirm Trade", callback_data="confirm_trade")],
-            [InlineKeyboardButton("Cancel Trade", callback_data="cancel_trade")]
-        ]
-    )
-
-    await message.reply_text(f"{message.reply_to_message.from_user.mention}, do you accept this trade?", reply_markup=keyboard)
-
-
-@shivuu.on_callback_query(filters.create(lambda _, __, query: query.data in ["confirm_trade", "cancel_trade"]))
-async def on_callback_query(client, callback_query):
-    receiver_id = callback_query.from_user.id
-
-    
-    for (sender_id, _receiver_id), (sender_character_id, receiver_character_id) in pending_trades.items():
-        if _receiver_id == receiver_id:
-            break
-    else:
-        await callback_query.answer("This is not for you!", show_alert=True)
-        return
-
-    if callback_query.data == "confirm_trade":
-        
-        sender = await user_collection.find_one({'id': sender_id})
-        receiver = await user_collection.find_one({'id': receiver_id})
-
-        sender_character = next((character for character in sender['characters'] if character['id'] == sender_character_id), None)
-        receiver_character = next((character for character in receiver['characters'] if character['id'] == receiver_character_id), None)
-
-        
-        
-        sender['characters'].remove(sender_character)
-        receiver['characters'].remove(receiver_character)
-
-        
-        await user_collection.update_one({'id': sender_id}, {'$set': {'characters': sender['characters']}})
-        await user_collection.update_one({'id': receiver_id}, {'$set': {'characters': receiver['characters']}})
-
-        
-        sender['characters'].append(receiver_character)
-        receiver['characters'].append(sender_character)
-
-        
-        await user_collection.update_one({'id': sender_id}, {'$set': {'characters': sender['characters']}})
-        await user_collection.update_one({'id': receiver_id}, {'$set': {'characters': receiver['characters']}})
-
-        
-        del pending_trades[(sender_id, receiver_id)]
-
-        await callback_query.message.edit_text(f"You have successfully traded your character with {callback_query.message.reply_to_message.from_user.mention}!")
-
-    elif callback_query.data == "cancel_trade":
-        
-        del pending_trades[(sender_id, receiver_id)]
-
-        await callback_query.message.edit_text("❌️ Sad Cancelled....")
-
-
-
-
-pending_gifts = {}
-
-
-@shivuu.on_message(filters.command("gift"))
-async def gift(client, message):
-    sender_id = message.from_user.id
-
-    if not message.reply_to_message:
-        await message.reply_text("You need to reply to a user's message to gift a character!")
-        return
-
-    receiver_id = message.reply_to_message.from_user.id
-    receiver_username = message.reply_to_message.from_user.username
-    receiver_first_name = message.reply_to_message.from_user.first_name
-
-    if sender_id == receiver_id:
-        await message.reply_text("You can't gift a character to yourself!")
-        return
-
-    if len(message.command) != 2:
-        await message.reply_text("You need to provide a character ID!")
-        return
-
-    character_id = message.command[1]
-
-    sender = await user_collection.find_one({'id': sender_id})
-
-    character = next((character for character in sender['characters'] if character['id'] == character_id), None)
-
-    if not character:
-        await message.reply_text("You don't have this character in your collection!")
-        return
-
-    
-    pending_gifts[(sender_id, receiver_id)] = {
-        'character': character,
-        'receiver_username': receiver_username,
-        'receiver_first_name': receiver_first_name
+    # Trade Request Store karein
+    trade_id = f"{sender_id}_{receiver_id}"
+    pending_trades[trade_id] = {
+        'sender': sender_id,
+        'receiver': receiver_id,
+        's_char': sender_char,
+        'r_char': receiver_char
     }
 
-    
-    keyboard = InlineKeyboardMarkup(
-        [
-            [InlineKeyboardButton("Confirm Gift", callback_data="confirm_gift")],
-            [InlineKeyboardButton("Cancel Gift", callback_data="cancel_gift")]
-        ]
+    keyboard = [
+        [InlineKeyboardButton("✅ Confirm", callback_data=f"trade_yes:{trade_id}"),
+         InlineKeyboardButton("❌ Cancel", callback_data=f"trade_no:{trade_id}")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
+    await update.message.reply_text(
+        f"🤝 **Trade Request!**\n\n"
+        f"👤 **{update.effective_user.first_name}** offers:\n"
+        f"🧸 {sender_char['name']} ({sender_char['rarity']})\n\n"
+        f"👤 **{update.message.reply_to_message.from_user.first_name}** gives:\n"
+        f"🧸 {receiver_char['name']} ({receiver_char['rarity']})\n\n"
+        f"⚠️ **{update.message.reply_to_message.from_user.first_name}**, do you accept?",
+        reply_markup=reply_markup,
+        parse_mode='Markdown'
     )
 
-    await message.reply_text(f"do You Really Wanns To Gift {message.reply_to_message.from_user.mention} ?", reply_markup=keyboard)
+async def trade_callback(update: Update, context: CallbackContext):
+    query = update.callback_query
+    data = query.data.split(':')
+    action = data[0]
+    trade_id = data[1]
 
-@shivuu.on_callback_query(filters.create(lambda _, __, query: query.data in ["confirm_gift", "cancel_gift"]))
-async def on_callback_query(client, callback_query):
-    sender_id = callback_query.from_user.id
-
-    
-    for (_sender_id, receiver_id), gift in pending_gifts.items():
-        if _sender_id == sender_id:
-            break
-    else:
-        await callback_query.answer("This is not for you!", show_alert=True)
+    if trade_id not in pending_trades:
+        await query.answer("❌ Trade expired or invalid.", show_alert=True)
+        await query.message.delete()
         return
 
-    if callback_query.data == "confirm_gift":
-        
-        sender = await user_collection.find_one({'id': sender_id})
-        receiver = await user_collection.find_one({'id': receiver_id})
+    trade_data = pending_trades[trade_id]
+    
+    # Sirf Receiver hi Accept/Decline kar sakta hai
+    if query.from_user.id != trade_data['receiver']:
+        await query.answer("❌ Ye aapke liye nahi hai!", show_alert=True)
+        return
 
-        
-        sender['characters'].remove(gift['character'])
-        await user_collection.update_one({'id': sender_id}, {'$set': {'characters': sender['characters']}})
+    if action == "trade_no":
+        del pending_trades[trade_id]
+        await query.message.edit_text("❌ Trade Declined.")
+        return
 
-        
-        if receiver:
-            await user_collection.update_one({'id': receiver_id}, {'$push': {'characters': gift['character']}})
-        else:
-            
-            await user_collection.insert_one({
-                'id': receiver_id,
-                'username': gift['receiver_username'],
-                'first_name': gift['receiver_first_name'],
-                'characters': [gift['character']],
-            })
+    if action == "trade_yes":
+        # Swap Logic
+        sender_id = trade_data['sender']
+        receiver_id = trade_data['receiver']
+        s_char = trade_data['s_char']
+        r_char = trade_data['r_char']
 
-        
-        del pending_gifts[(sender_id, receiver_id)]
+        # Remove from Owners
+        await user_collection.update_one({'id': sender_id}, {'$pull': {'characters': {'id': s_char['id']}}})
+        await user_collection.update_one({'id': receiver_id}, {'$pull': {'characters': {'id': r_char['id']}}})
 
-        await callback_query.message.edit_text(f"You have successfully gifted your character to [{gift['receiver_first_name']}](tg://user?id={receiver_id})!")
+        # Add to New Owners
+        await user_collection.update_one({'id': sender_id}, {'$push': {'characters': r_char}})
+        await user_collection.update_one({'id': receiver_id}, {'$push': {'characters': s_char}})
 
+        del pending_trades[trade_id]
+        await query.message.edit_text("✅ **Trade Successful!** 🎉", parse_mode='Markdown')
 
+application.add_handler(CommandHandler("trade", trade))
+application.add_handler(CallbackQueryHandler(trade_callback, pattern="^trade_"))
