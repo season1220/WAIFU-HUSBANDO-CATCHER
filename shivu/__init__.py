@@ -10,8 +10,7 @@ logging.basicConfig(
 )
 LOGGER = logging.getLogger(__name__)
 
-# --- 2. DIRECT SETTINGS (No Config File Needed) ---
-# Maine aapki saari details yahan bhar di hain
+# --- 2. CONFIG SETTINGS ---
 TOKEN = "8578752843:AAHNWJAKLmZ_pc9tHPgyhUtnjOKxtXD6mM8"
 mongo_url = "mongodb+srv://seasonking:season_123@cluster0.e5zbzap.mongodb.net/?appName=Cluster0"
 OWNER_ID = 7164618867
@@ -22,25 +21,23 @@ UPDATE_CHAT = "seasonwaifuBot"
 BOT_USERNAME = "seasonwaifuBot"
 GROUP_ID = -1003352372209
 PHOTO_URL = ["https://telegra.ph/file/b925c3985f0f325e62e17.jpg", "https://telegra.ph/file/4211fb191383d895dab9d.jpg"]
-
-# API Details
 api_id = 34967775
 api_hash = "e6e5dfae5327f90410863f93d8ced26b"
 
-# --- 3. DATABASE CONNECTION ---
+# --- 3. DATABASE CONNECTION (Corrected Names) ---
 client = AsyncIOMotorClient(mongo_url)
 db = client['Character_catcher']
+
+# Ye wo naam hain jo __main__.py dhund raha hai
 collection = db['anime_characters']
 user_collection = db["user_collection_lmao"]
-group_user_collection = db["group_user_collection"]
-top_global_collection = db["top_global_collection"]
-pm_users = db["total_pm_users"]
+group_user_totals_collection = db["group_user_totals_collection"]
+top_global_groups_collection = db["top_global_groups_collection"]
+user_totals_collection = db["user_totals_collection"]
 
-# --- 4. BOT CREATION (PTB + PYROGRAM) ---
-# Ye Application hai (Commands ke liye)
+# --- 4. BOT CLIENTS ---
+# Commands ke liye
 application = Application.builder().token(TOKEN).build()
 
-# Ye Shivuu Client hai (User checks ke liye)
+# User info ke liye (Pyrogram)
 shivuu = Client("shivu_session", api_id, api_hash, bot_token=TOKEN)
-
-# NOTE: Modules yahan load NAHI honge. Wo __main__.py me honge.
