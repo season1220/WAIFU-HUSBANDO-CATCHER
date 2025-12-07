@@ -3,7 +3,7 @@ from telegram import Update
 from telegram.ext import CommandHandler, CallbackContext
 from shivu import application, user_collection, collection
 
-# Roll ki keemat
+# Roll ki keemat (Price)
 ROLL_PRICE = 500 
 
 async def roll(update: Update, context: CallbackContext) -> None:
@@ -21,8 +21,13 @@ async def roll(update: Update, context: CallbackContext) -> None:
 
     # Character Do
     all_chars = list(await collection.find({}).to_list(length=None))
+    if not all_chars:
+        await update.message.reply_text("Database khali hai!")
+        return
+
     character = random.choice(all_chars)
     
+    # User ke harem me add karein
     await user_collection.update_one({'id': user_id}, {'$push': {'characters': character}})
 
     await update.message.reply_photo(
