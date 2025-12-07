@@ -10,11 +10,10 @@ from telegram.ext import CommandHandler, CallbackContext, MessageHandler, filter
 
 from shivu import collection, top_global_groups_collection, group_user_totals_collection, user_collection, user_totals_collection, application, SUPPORT_CHAT, UPDATE_CHAT, db, LOGGER, shivuu
 
-# --- SAFE IMPORT LIST ---
-# Maine 'changetime', 'extras', 'settings' hata diya hai kyunki wo error de rahe hain.
-# Pehle bot start karte hain, phir unhe fix karenge.
-from shivu.modules import upload, manage, start, help, harem, leaderboard, trade
-# ------------------------
+# --- SABHI MODULES LOAD ---
+# Yahan 'balance' aur 'roll' add kar diya hai
+from shivu.modules import upload, manage, start, help, harem, leaderboard, trade, extras, settings, changetime, balance, roll
+# --------------------------
 
 locks = {}
 message_counters = {}
@@ -88,11 +87,18 @@ async def guess(update: Update, context: CallbackContext) -> None:
     if sorted(name_parts) == sorted(guess.split()) or any(part == guess for part in name_parts):
         first_correct_guesses[chat_id] = user_id
         
+        # --- TIME CALCULATION ---
         time_taken = "Unknown"
         if chat_id in spawn_times:
             seconds = time.time() - spawn_times[chat_id]
             time_taken = f"{seconds:.2f} seconds"
 
+        # --- COIN REWARD SYSTEM (NOBITA STYLE) ---
+        # Sahi guess karne par 50 Coins milenge
+        COIN_REWARD = 50
+        await user_collection.update_one({'id': user_id}, {'$inc': {'balance': COIN_REWARD}})
+
+        # Database Update
         user = await user_collection.find_one({'id': user_id})
         if user:
             await user_collection.update_one({'id': user_id}, {'$push': {'characters': last_characters[chat_id]}})
@@ -103,11 +109,13 @@ async def guess(update: Update, context: CallbackContext) -> None:
         await top_global_groups_collection.update_one({'group_id': chat_id}, {'$inc': {'count': 1}, '$set': {'group_name': update.effective_chat.title}}, upsert=True)
 
         keyboard = [[InlineKeyboardButton(f"See Harem", switch_inline_query_current_chat=f"collection.{user_id}")]]
+        
         await update.message.reply_text(
             f'<b><a href="tg://user?id={user_id}">{escape(update.effective_user.first_name)}</a></b>, you\'ve captured a new character! 🎊\n\n'
             f'📛 <b>NAME:</b> {last_characters[chat_id]["name"]} \n'
             f'🌈 <b>ANIME:</b> {last_characters[chat_id]["anime"]} \n'
             f'✨ <b>RARITY:</b> {last_characters[chat_id]["rarity"]}\n\n'
+            f'💰 <b>EARNED:</b> {COIN_REWARD} Coins\n'
             f'⏱️ <b>TIME TAKEN:</b> {time_taken}', 
             parse_mode='HTML', reply_markup=InlineKeyboardMarkup(keyboard)
         )
