@@ -7,10 +7,9 @@ from collections import defaultdict
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackContext, CallbackQueryHandler
 from motor.motor_asyncio import AsyncIOMotorClient
-from aiohttp import web # Web Server Fix
+from aiohttp import web
 
 # --- 1. CONFIGURATION ---
-# Aapka Naya Token Yahan Hai 👇
 TOKEN = "8578752843:AAGUn1AT8qAegWh6myR6aV28RHm2h0LUrXY"
 MONGO_URL = "mongodb+srv://seasonking:season_123@cluster0.e5zbzap.mongodb.net/?appName=Cluster0"
 OWNER_ID = 7164618867
@@ -32,7 +31,7 @@ logger = logging.getLogger(__name__)
 message_counts = {}
 last_spawn = {} 
 
-# --- HELPER: Rarity Emoji ---
+# --- HELPER ---
 def get_rarity_emoji(rarity):
     r = rarity.lower()
     if "luxury" in r: return "💍"
@@ -50,17 +49,11 @@ def get_rarity_emoji(rarity):
     return "✨"
 
 # --- 5. COMMANDS ---
-
 async def start(update: Update, context: CallbackContext):
-    caption = (
-        "👋 **Namaste! Main Season Waifu hu!**\n\n"
-        "Same to Same Nobita Style!\n"
-        "Add me to your group to start."
-    )
+    caption = "👋 **Namaste! Main Season Waifu hu!**\n\nAdd me to your group to start."
     keyboard = [[InlineKeyboardButton("➕ Add Me to Group", url="http://t.me/seasonwaifuBot?startgroup=new")]]
     await update.message.reply_photo(photo=PHOTO_URL, caption=caption, reply_markup=InlineKeyboardMarkup(keyboard))
 
-# --- UPLOAD ---
 async def rupload(update: Update, context: CallbackContext):
     if update.effective_user.id != OWNER_ID: return
     if not update.message.reply_to_message or not update.message.reply_to_message.photo:
@@ -75,44 +68,30 @@ async def rupload(update: Update, context: CallbackContext):
 
         name = args[0].replace('-', ' ').title()
         anime = args[1].replace('-', ' ').title()
-        
         rarity_map = {1:"🥉 Low", 2:"🥈 Medium", 3:"🥇 High", 4:"🔮 Special Edition", 5:"💠 Elite Edition", 6:"🦄 Legendary", 7:"💌 Valentine", 8:"🧛🏻 Halloween", 9:"🥶 Winter", 10:"🍹 Summer", 11:"⚜️ Royal", 12:"💍 Luxury Edition"}
-        
-        try:
-            r_num = int(args[2])
-            rarity = rarity_map.get(r_num, "✨ Special")
-        except:
-            rarity = "✨ Special"
+        try: rarity = rarity_map.get(int(args[2]), "✨ Special")
+        except: rarity = "✨ Special"
 
         file_id = update.message.reply_to_message.photo[-1].file_id
         char_id = str(random.randint(1000, 9999))
-
-        char_data = {'img_url': file_id, 'name': name, 'anime': anime, 'rarity': rarity, 'id': char_id}
-        await col_chars.insert_one(char_data)
+        await col_chars.insert_one({'img_url': file_id, 'name': name, 'anime': anime, 'rarity': rarity, 'id': char_id})
         
         await update.message.reply_text(f"✅ Uploaded: **{name}**")
         await context.bot.send_photo(chat_id=CHANNEL_ID, photo=file_id, caption=f"🆕 New Character: {name}\n🌈 Anime: {anime}\n✨ Rarity: {rarity}\n🆔 ID: {char_id}")
+    except Exception as e: await update.message.reply_text(f"Error: {e}")
 
-    except Exception as e:
-        await update.message.reply_text(f"Error: {e}")
-
-# --- ADVANCED HAREM SYSTEM ---
 async def harem(update: Update, context: CallbackContext):
     user_id = update.effective_user.id
-    if update.message.reply_to_message:
-        user_id = update.message.reply_to_message.from_user.id
-    
+    if update.message.reply_to_message: user_id = update.message.reply_to_message.from_user.id
     user = await col_users.find_one({'id': user_id})
     if not user or not user.get('characters'):
         await update.message.reply_text("❌ Collection khali hai.")
         return
-
+    
     characters = user['characters']
     anime_map = defaultdict(list)
     for char in characters: anime_map[char['anime']].append(char)
-    sorted_animes = sorted(anime_map.keys())
-    
-    await send_harem_page(update, context, sorted_animes, anime_map, 0, user_id, user.get('name', 'User'))
+    await send_harem_page(update, context, sorted(anime_map.keys()), anime_map, 0, user_id, user.get('name', 'User'))
 
 async def send_harem_page(update, context, sorted_animes, anime_map, page, user_id, user_name):
     CHUNK_SIZE = 5
@@ -122,20 +101,18 @@ async def send_harem_page(update, context, sorted_animes, anime_map, page, user_
 
     current_animes = sorted_animes[page * CHUNK_SIZE : (page + 1) * CHUNK_SIZE]
     msg = f"<b>🍃 {user_name}'s Harem</b>\nTotal Characters: {sum(len(v) for v in anime_map.values())}\n\n"
-
     for anime in current_animes:
         chars = anime_map[anime]
         msg += f"<b>{anime}</b> {len(chars)}\n"
         for char in chars:
-            emoji = get_rarity_emoji(char['rarity'])
-            msg += f"♦️ {emoji} <code>{char['id']}</code> {char['name']} ×1\n"
+            msg += f"♦️ {get_rarity_emoji(char['rarity'])} <code>{char['id']}</code> {char['name']} ×1\n"
         msg += "\n"
 
     buttons = []
-    nav_row = []
-    if page > 0: nav_row.append(InlineKeyboardButton("⬅️", callback_data=f"h_prev_{user_id}_{page}"))
-    if page < total_pages - 1: nav_row.append(InlineKeyboardButton("➡️", callback_data=f"h_next_{user_id}_{page}"))
-    buttons.append(nav_row)
+    nav = []
+    if page > 0: nav.append(InlineKeyboardButton("⬅️", callback_data=f"h_prev_{user_id}_{page}"))
+    if page < total_pages - 1: nav.append(InlineKeyboardButton("➡️", callback_data=f"h_next_{user_id}_{page}"))
+    buttons.append(nav)
     buttons.append([InlineKeyboardButton(f"Collection ({sum(len(v) for v in anime_map.values())})", callback_data="dummy")])
     
     reply_markup = InlineKeyboardMarkup(buttons)
@@ -157,7 +134,6 @@ async def harem_callback(update: Update, context: CallbackContext):
         new_page = current_page - 1 if data[1] == "prev" else current_page + 1
         await send_harem_page(update, context, sorted(anime_map.keys()), anime_map, new_page, user_id, user.get('name', 'User'))
 
-# --- GAME ENGINE ---
 async def message_handler(update: Update, context: CallbackContext):
     chat_id = update.effective_chat.id
     if chat_id not in message_counts: message_counts[chat_id] = 0
@@ -195,7 +171,7 @@ async def balance(update: Update, context: CallbackContext):
     user = await col_users.find_one({'id': update.effective_user.id})
     await update.message.reply_text(f"💰 **Balance:** {user.get('balance', 0) if user else 0} coins")
 
-# --- WEB SERVER (Render Deploying Fix) ---
+# --- WEB SERVER & MAIN FIX ---
 async def web_server():
     async def handle(request): return web.Response(text="Bot is Live!")
     app = web.Application()
@@ -206,10 +182,10 @@ async def web_server():
     await site.start()
 
 async def main():
-    # Start Web Server
+    # 1. Start Web Server
     await web_server()
     
-    # Start Bot
+    # 2. Setup Bot
     app = Application.builder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("rupload", rupload))
@@ -219,8 +195,14 @@ async def main():
     app.add_handler(CallbackQueryHandler(harem_callback, pattern="^h_"))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
     
-    print("✅ Bot Started with New Token...")
+    # 3. INITIALIZE & START (Ye Step Missing Tha!)
+    await app.initialize()
+    await app.start()
     await app.updater.start_polling()
+    
+    print("✅ Bot Started Successfully...")
+    
+    # 4. Keep Alive
     await asyncio.Event().wait()
 
 if __name__ == "__main__":
