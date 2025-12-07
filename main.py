@@ -259,17 +259,41 @@ async def delete(update: Update, context: CallbackContext):
 
 async def changetime(update: Update, context: CallbackContext):
     user_id = update.effective_user.id
-    if not await is_admin(user_id): return
+    chat_id = update.effective_chat.id
+    
+    # 1. Input Check
     if not context.args:
-        await update.message.reply_text("⚠️ `/ctime [Number]`")
+        await update.message.reply_text("⚠️ **Format:** `/ctime [Number]`\nExample: `/ctime 100`", parse_mode='Markdown')
         return
-    try: freq = int(context.args[0])
-    except: return
-    if user_id != OWNER_ID and freq < 80:
-        await update.message.reply_text("❌ Minimum 80.")
+    
+    try:
+        freq = int(context.args[0])
+    except ValueError:
+        await update.message.reply_text("❌ Number likhna padega.")
         return
-    await col_settings.update_one({'_id': str(update.effective_chat.id)}, {'$set': {'freq': freq}}, upsert=True)
-    await update.message.reply_text(f"✅ Frequency: **{freq}**")
+
+    # 2. 👑 OWNER POWER (GOD MODE)
+    # Agar aap owner hain, toh Admin hone ki zarurat nahi aur koi Limit nahi.
+    if user_id == OWNER_ID:
+        await col_settings.update_one({'_id': str(chat_id)}, {'$set': {'freq': freq}}, upsert=True)
+        await update.message.reply_text(f"👑 **Owner Override:** Frequency set to **{freq}** messages.")
+        return
+
+    # 3. 👮 GROUP ADMIN CHECK
+    # Check karein ki user Group ka Admin hai ya nahi
+    member = await context.bot.get_chat_member(chat_id, user_id)
+    if member.status not in ['administrator', 'creator']:
+        await update.message.reply_text("❌ Sirf **Group Admins** ye setting change kar sakte hain.")
+        return
+
+    # 4. 🛡️ LIMITS FOR ADMINS (80 - 300)
+    if freq < 80 or freq > 300:
+        await update.message.reply_text("❌ **Limit Error!**\nAdmins sirf **80 se 300** ke beech set kar sakte hain.")
+        return
+
+    # 5. SAVE SETTING
+    await col_settings.update_one({'_id': str(chat_id)}, {'$set': {'freq': freq}}, upsert=True)
+    await update.message.reply_text(f"✅ Spawn frequency set to **{freq}** messages.")
 
 async def bcast(update: Update, context: CallbackContext):
     if update.effective_user.id != OWNER_ID: return
