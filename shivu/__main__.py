@@ -10,15 +10,17 @@ from telegram.ext import CommandHandler, CallbackContext, MessageHandler, filter
 
 from shivu import collection, top_global_groups_collection, group_user_totals_collection, user_collection, user_totals_collection, application, SUPPORT_CHAT, UPDATE_CHAT, db, LOGGER, shivuu
 
-# --- 🟢 AUTOMATIC MODULE LOADER (Sabse Important) ---
+# --- 🟢 AUTOMATIC MODULE LOADER (MAGIC) ---
 from shivu.modules import ALL_MODULES
 
 LOGGER.info("Modules Load ho rahe hain...")
 for module_name in ALL_MODULES:
-    # Ye loop folder ki har file (roll, balance, upload etc) ko load karega
-    importlib.import_module("shivu.modules." + module_name)
-    LOGGER.info(f"Loaded: {module_name}")
-# ----------------------------------------------------
+    try:
+        importlib.import_module("shivu.modules." + module_name)
+        LOGGER.info(f"✅ Loaded: {module_name}")
+    except Exception as e:
+        LOGGER.error(f"❌ Failed to load {module_name}: {e}")
+# -------------------------------------------
 
 locks = {}
 message_counters = {}
@@ -98,6 +100,7 @@ async def guess(update: Update, context: CallbackContext) -> None:
             seconds = time.time() - spawn_times[chat_id]
             time_taken = f"{seconds:.2f} seconds"
         
+        # COINS (Character Catcher Style)
         COIN_REWARD = 50
         await user_collection.update_one({'id': user_id}, {'$inc': {'balance': COIN_REWARD}})
 
@@ -117,8 +120,8 @@ async def guess(update: Update, context: CallbackContext) -> None:
             f'📛 <b>NAME:</b> {last_characters[chat_id]["name"]} \n'
             f'🌈 <b>ANIME:</b> {last_characters[chat_id]["anime"]} \n'
             f'✨ <b>RARITY:</b> {last_characters[chat_id]["rarity"]}\n\n'
-            f'💰 <b>EARNED:</b> {COIN_REWARD} Coins\n'
-            f'⏱️ <b>TIME TAKEN:</b> {time_taken}', 
+            f'💰 <b>COINS:</b> +{COIN_REWARD}\n'
+            f'⏱️ <b>TIME:</b> {time_taken}', 
             parse_mode='HTML', reply_markup=InlineKeyboardMarkup(keyboard)
         )
     else:
