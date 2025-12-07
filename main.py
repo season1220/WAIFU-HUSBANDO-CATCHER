@@ -15,7 +15,8 @@ TOKEN = "8578752843:AAGUn1AT8qAegWh6myR6aV28RHm2h0LUrXY"
 MONGO_URL = "mongodb+srv://seasonking:season_123@cluster0.e5zbzap.mongodb.net/?appName=Cluster0"
 OWNER_ID = 7164618867
 CHANNEL_ID = -1003352372209 
-PHOTO_URL = "https://telegra.ph/file/5e7300c32609050d26733.jpg"
+# 👇 Maine Link Change kar diya hai, ab error nahi aayega
+PHOTO_URL = "https://wallpapercave.com/wp/wp5399566.jpg"
 PORT = 10000
 BOT_USERNAME = "seasonwaifuBot"
 OWNER_USERNAME = "DADY_JI"
@@ -338,7 +339,7 @@ async def harem(update: Update, context: CallbackContext):
     if update.message.reply_to_message: user_id = update.message.reply_to_message.from_user.id
     user = await col_users.find_one({'id': user_id})
     if not user or not user.get('characters'):
-        await update.message.reply_text("❌ Empty Harem.")
+        await update.message.reply_text("❌ Collection khali hai.")
         return
     characters = user['characters']
     anime_map = defaultdict(list)
@@ -363,8 +364,10 @@ async def send_harem_page(update, context, sorted_animes, anime_map, page, user_
     if page < total_pages - 1: nav.append(InlineKeyboardButton("➡️", callback_data=f"h_next_{user_id}_{page}"))
     buttons.append(nav)
     buttons.append([InlineKeyboardButton(f"Collection ({sum(len(v) for v in anime_map.values())})", callback_data="dummy")])
-    if update.callback_query: await update.callback_query.edit_message_text(msg, parse_mode='HTML', reply_markup=InlineKeyboardMarkup(buttons))
-    else: await update.message.reply_text(msg, parse_mode='HTML', reply_markup=InlineKeyboardMarkup(buttons))
+    reply_markup = InlineKeyboardMarkup(buttons)
+    
+    if update.callback_query: await update.callback_query.edit_message_text(msg, parse_mode='HTML', reply_markup=reply_markup)
+    else: await update.message.reply_text(msg, parse_mode='HTML', reply_markup=reply_markup)
 
 async def harem_callback(update: Update, context: CallbackContext):
     query = update.callback_query
@@ -416,7 +419,11 @@ async def guess(update: Update, context: CallbackContext):
         await update.message.reply_text(caption, parse_mode='HTML', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("See Harem", switch_inline_query_current_chat=f"collection.{user_id}")]]))
         del last_spawn[chat_id]
 
-# --- MAIN ---
+async def balance(update: Update, context: CallbackContext):
+    user = await col_users.find_one({'id': update.effective_user.id})
+    await update.message.reply_text(f"💰 **Balance:** {user.get('balance', 0) if user else 0} coins")
+
+# --- WEB SERVER & MAIN ---
 async def web_server():
     async def handle(request): return web.Response(text="Bot is Live!")
     app = web.Application()
