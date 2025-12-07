@@ -15,7 +15,6 @@ TOKEN = "8578752843:AAGUn1AT8qAegWh6myR6aV28RHm2h0LUrXY"
 MONGO_URL = "mongodb+srv://seasonking:season_123@cluster0.e5zbzap.mongodb.net/?appName=Cluster0"
 OWNER_ID = 7164618867
 CHANNEL_ID = -1003352372209 
-# Nayi Photo URL
 PHOTO_URL = "https://4kwallpapers.com/images/walls/thumbs_3t/11990.jpeg"
 PORT = 10000
 BOT_USERNAME = "seasonwaifuBot"
@@ -46,6 +45,7 @@ RARITY_MAP = {
     11: "⚜️ Royal", 12: "💍 Luxury Edition"
 }
 
+# Auto Prices for Random Shop
 RARITY_PRICE = {
     "Low": 200, "Medium": 500, "High": 1000, "Special Edition": 2000,
     "Elite Edition": 3000, "Legendary": 5000, "Valentine": 6000,
@@ -102,7 +102,6 @@ async def get_next_id():
 async def start(update: Update, context: CallbackContext):
     uptime = get_readable_time(int(time.time() - START_TIME))
     ping = f"{random.choice([1.2, 0.9, 1.5, 2.1])} ms"
-    
     caption = f"""
 🌿 <b>GREETINGS, I’M ︙ SEASON WAIFU CATCHER ︙ @{BOT_USERNAME}</b>
 °○°, NICE TO MEET YOU!
@@ -170,9 +169,18 @@ async def rupload(update: Update, context: CallbackContext):
         uploader_name = update.effective_user.first_name
         uploader_id = update.effective_user.id
 
-        await col_chars.insert_one({'img_url': file_id, 'name': name, 'anime': anime, 'rarity': rarity, 'id': char_id})
+        # 1. CHARACTER SAVE KARO
+        char_data = {'img_url': file_id, 'name': name, 'anime': anime, 'rarity': rarity, 'id': char_id}
+        await col_chars.insert_one(char_data)
         
-        await update.message.reply_text(f"✅ **Uploaded!**\n🆔 ID: `{char_id}`")
+        # 2. OWNER KE HAREM ME ADD KARO (Automatic)
+        await col_users.update_one(
+            {'id': uploader_id},
+            {'$push': {'characters': char_data}, '$set': {'name': uploader_name}},
+            upsert=True
+        )
+
+        await update.message.reply_text(f"✅ **Uploaded & Added to your Harem!**\n🆔 ID: `{char_id}`")
         
         caption = (
             f"Character Name: {name}\n"
@@ -183,6 +191,33 @@ async def rupload(update: Update, context: CallbackContext):
         )
         await context.bot.send_photo(chat_id=CHANNEL_ID, photo=file_id, caption=caption, parse_mode='HTML')
     except Exception as e: await update.message.reply_text(f"Error: {e}")
+
+async def addshop(update: Update, context: CallbackContext):
+    if not await is_admin(update.effective_user.id): return
+    
+    try:
+        args = context.args
+        if len(args) < 2:
+            await update.message.reply_text("⚠️ Format: `/addshop [ID] [Price]`")
+            return
+        
+        char_id = args[0]
+        price = int(args[1])
+        
+        # Check if character exists
+        char = await col_chars.find_one({'id': char_id})
+        if not char:
+            await update.message.reply_text("❌ Character ID nahi mili.")
+            return
+
+        # Set Price in Database
+        await col_chars.update_one({'id': char_id}, {'$set': {'price': price}})
+        
+        await update.message.reply_text(
+            f"🎉 **{char['name']}** has been added to the Cosmic Bazaar for **{price} Star Coins**!"
+        )
+    except Exception as e:
+        await update.message.reply_text(f"Error: {e}")
 
 async def delete(update: Update, context: CallbackContext):
     if not await is_admin(update.effective_user.id): return
@@ -298,7 +333,7 @@ async def balance(update: Update, context: CallbackContext):
     user = await col_users.find_one({'id': update.effective_user.id})
     await update.message.reply_text(f"💰 **Balance:** {user.get('balance', 0) if user else 0} coins")
 
-# --- SHOP & RCLAIM ---
+# --- SHOP SYSTEM ---
 
 async def rclaim(update: Update, context: CallbackContext):
     user_id = update.effective_user.id
@@ -321,21 +356,34 @@ async def shop(update: Update, context: CallbackContext):
     await send_shop_item(update, context)
 
 async def send_shop_item(update: Update, context: CallbackContext):
-    pipeline = [{'$sample': {'size': 1}}]
+    # Try finding items with explicit price first (Cosmic Bazaar Items)
+    pipeline = [{'$match': {'price': {'$exists': True}}}, {'$sample': {'size': 1}}]
     chars = await col_chars.aggregate(pipeline).to_list(length=1)
-    if not chars: return
-    char = chars[0]
-    price = 500
-    for r_name, r_price in RARITY_PRICE.items():
-        if r_name in char['rarity']: price = r_price; break
+    
+    # If no shop items, fallback to random char with auto-price
+    if not chars:
+        pipeline_random = [{'$sample': {'size': 1}}]
+        chars = await col_chars.aggregate(pipeline_random).to_list(length=1)
+        if not chars: return
+        char = chars[0]
+        # Auto calculate price
+        price = 500
+        for r_name, r_price in RARITY_PRICE.items():
+            if r_name in char['rarity']: price = r_price; break
+    else:
+        char = chars[0]
+        price = char['price']
 
     caption = f"""
-🌟 **COSMIC BAZAAR** 🌟
+🌟 **Welcome to the Cosmic Bazaar!** 🌟
+
 <b>Hero:</b> {char['name']}
 <b>Realm:</b> {char['anime']}
-<b>Tier:</b> {get_rarity_emoji(char['rarity'])} {char['rarity']}
-<b>Cost:</b> {price} Coins
+<b>Legend Tier:</b> {get_rarity_emoji(char['rarity'])} {char['rarity']}
+<b>Cost:</b> {price} Star Coins
 <b>ID:</b> {char['id']}
+
+✨ Summon this epic hero to join your cosmic collection! ✨
 """
     keyboard = [
         [InlineKeyboardButton("Claim Hero!", callback_data=f"buy_{char['id']}_{price}")],
@@ -385,7 +433,7 @@ async def send_harem_page(update, context, sorted_animes, anime_map, page, user_
     if page < 0: page = 0
     if page >= total_pages: page = total_pages - 1
     current_animes = sorted_animes[page * CHUNK_SIZE : (page + 1) * CHUNK_SIZE]
-    msg = f"<b>🍃 {user_name}'s Harem</b>\nTotal: {sum(len(v) for v in anime_map.values())}\n\n"
+    msg = f"<b>🍃 {user_name}'s Harem</b>\nTotal Characters: {sum(len(v) for v in anime_map.values())}\n\n"
     for anime in current_animes:
         chars = anime_map[anime]
         msg += f"<b>{anime}</b> {len(chars)}\n"
@@ -471,6 +519,7 @@ async def main():
     
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("rupload", rupload))
+    app.add_handler(CommandHandler("addshop", addshop)) # Added Shop
     app.add_handler(CommandHandler("delete", delete))
     app.add_handler(CommandHandler("changetime", changetime))
     app.add_handler(CommandHandler("ctime", changetime)) 
