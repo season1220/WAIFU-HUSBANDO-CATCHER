@@ -15,8 +15,8 @@ TOKEN = "8578752843:AAGUn1AT8qAegWh6myR6aV28RHm2h0LUrXY"
 MONGO_URL = "mongodb+srv://seasonking:season_123@cluster0.e5zbzap.mongodb.net/?appName=Cluster0"
 OWNER_ID = 7164618867
 CHANNEL_ID = -1003352372209 
-# 👇 Maine Link Change kar diya hai, ab error nahi aayega
-PHOTO_URL = "https://wallpapercave.com/wp/wp5399566.jpg"
+# Nayi Photo URL
+PHOTO_URL = "https://4kwallpapers.com/images/walls/thumbs_3t/11990.jpeg"
 PORT = 10000
 BOT_USERNAME = "seasonwaifuBot"
 OWNER_USERNAME = "DADY_JI"
@@ -97,25 +97,33 @@ async def get_next_id():
     )
     return str(doc['seq']).zfill(2)
 
-# --- COMMANDS ---
+# --- 5. COMMANDS ---
 
 async def start(update: Update, context: CallbackContext):
     uptime = get_readable_time(int(time.time() - START_TIME))
     ping = f"{random.choice([1.2, 0.9, 1.5, 2.1])} ms"
+    
     caption = f"""
 🌿 <b>GREETINGS, I’M ︙ SEASON WAIFU CATCHER ︙ @{BOT_USERNAME}</b>
 °○°, NICE TO MEET YOU!
 
 ───────────𖤐𖤐𖤐───────────
-◎ <b>WHAT I DO:</b> I SPAWN WAIFUS IN YOUR CHAT.
-◎ <b>TO USE ME:</b> ADD ME TO YOUR GROUP.
+
+◎ <b>WHAT I DO:</b>
+I SPAWN WAIFUS IN YOUR CHAT FOR USERS TO GRAB.
+
+◎ <b>TO USE ME:</b>
+ADD ME TO YOUR GROUP AND TAP THE HELP BUTTON FOR DETAILS.
+
 ───────────𖤐𖤐𖤐───────────
 
 📶 <b>PING:</b> {ping}
 ⏱️ <b>UPTIME:</b> {uptime}
+
+───────────
 """
     keyboard = [
-        [InlineKeyboardButton("Add to Your Group", url=f"http://t.me/{BOT_USERNAME}?startgroup=new")],
+        [InlineKeyboardButton("👥 ADD ME TO YOUR GROUP", url=f"http://t.me/{BOT_USERNAME}?startgroup=new")],
         [InlineKeyboardButton("🔧 SUPPORT", url=f"https://t.me/{BOT_USERNAME}"), InlineKeyboardButton("📣 CHANNEL", url=f"https://t.me/{BOT_USERNAME}")],
         [InlineKeyboardButton("❓ HELP", callback_data="help_menu")],
         [InlineKeyboardButton(f"👑 OWNER — @{OWNER_USERNAME}", url=f"https://t.me/{OWNER_USERNAME}")]
@@ -127,9 +135,12 @@ async def help_menu(update: Update, context: CallbackContext):
 <b>⚙️ HELP MENU</b>
 /guess - Character pakdne ke liye
 /harem - Collection dekhne ke liye
+/shop - Cosmic Bazaar (Buy Characters)
+/trade - Character trade karein
+/gift - Free gift karein
 /daily - Free rewards
-/gift - Dosto ko character dein
-/top - Leaderboard dekhein
+/balance - Paise check karein
+/top - Leaderboard
 """
     if update.callback_query: await update.callback_query.message.reply_text(msg, parse_mode='HTML')
     else: await update.message.reply_text(msg, parse_mode='HTML')
@@ -156,9 +167,21 @@ async def rupload(update: Update, context: CallbackContext):
         file_id = update.message.reply_to_message.photo[-1].file_id
         char_id = await get_next_id()
 
+        uploader_name = update.effective_user.first_name
+        uploader_id = update.effective_user.id
+
         await col_chars.insert_one({'img_url': file_id, 'name': name, 'anime': anime, 'rarity': rarity, 'id': char_id})
-        await update.message.reply_text(f"✅ **Uploaded!**\n🆔 ID: `{char_id}`\n✨ {rarity}")
-        await context.bot.send_photo(chat_id=CHANNEL_ID, photo=file_id, caption=f"🆕 New Character: {name}\n🌈 Anime: {anime}\n✨ Rarity: {rarity}\n🆔 ID: {char_id}")
+        
+        await update.message.reply_text(f"✅ **Uploaded!**\n🆔 ID: `{char_id}`")
+        
+        caption = (
+            f"Character Name: {name}\n"
+            f"Anime Name: {anime}\n"
+            f"Rarity: {rarity}\n"
+            f"ID: {char_id}\n"
+            f"Added by <a href='tg://user?id={uploader_id}'>{uploader_name}</a>"
+        )
+        await context.bot.send_photo(chat_id=CHANNEL_ID, photo=file_id, caption=caption, parse_mode='HTML')
     except Exception as e: await update.message.reply_text(f"Error: {e}")
 
 async def delete(update: Update, context: CallbackContext):
@@ -168,18 +191,26 @@ async def delete(update: Update, context: CallbackContext):
         return
     char_id = context.args[0]
     res = await col_chars.delete_one({'id': char_id})
-    if res.deleted_count: await update.message.reply_text(f"✅ Deleted `{char_id}`.")
+    if res.deleted_count: await update.message.reply_text(f"✅ Character `{char_id}` deleted.")
     else: await update.message.reply_text("❌ ID not found.")
 
 async def changetime(update: Update, context: CallbackContext):
-    if not await is_admin(update.effective_user.id): return
+    user_id = update.effective_user.id
+    if not await is_admin(user_id): return
+    
     if not context.args:
-        await update.message.reply_text("⚠️ `/changetime [Number]`")
+        await update.message.reply_text("⚠️ `/ctime [Number]`")
         return
     try: freq = int(context.args[0])
     except: return
+
+    if user_id != OWNER_ID:
+        if freq < 80:
+            await update.message.reply_text("❌ Minimum limit 80 hai.")
+            return
+            
     await col_settings.update_one({'_id': str(update.effective_chat.id)}, {'$set': {'freq': freq}}, upsert=True)
-    await update.message.reply_text(f"✅ Frequency set to **{freq}**.")
+    await update.message.reply_text(f"✅ Spawn frequency set to **{freq}** messages.")
 
 async def bcast(update: Update, context: CallbackContext):
     if update.effective_user.id != OWNER_ID: return
@@ -249,6 +280,9 @@ async def gift(update: Update, context: CallbackContext):
     await col_users.update_one({'id': receiver_id}, {'$push': {'characters': character}}, upsert=True)
     await update.message.reply_text(f"🎁 **{character['name']}** gifted successfully!")
 
+async def trade(update: Update, context: CallbackContext):
+    await gift(update, context)
+
 async def top(update: Update, context: CallbackContext):
     cursor = col_users.find({})
     users = []
@@ -291,7 +325,6 @@ async def send_shop_item(update: Update, context: CallbackContext):
     chars = await col_chars.aggregate(pipeline).to_list(length=1)
     if not chars: return
     char = chars[0]
-    
     price = 500
     for r_name, r_price in RARITY_PRICE.items():
         if r_name in char['rarity']: price = r_price; break
@@ -365,7 +398,6 @@ async def send_harem_page(update, context, sorted_animes, anime_map, page, user_
     buttons.append(nav)
     buttons.append([InlineKeyboardButton(f"Collection ({sum(len(v) for v in anime_map.values())})", callback_data="dummy")])
     reply_markup = InlineKeyboardMarkup(buttons)
-    
     if update.callback_query: await update.callback_query.edit_message_text(msg, parse_mode='HTML', reply_markup=reply_markup)
     else: await update.message.reply_text(msg, parse_mode='HTML', reply_markup=reply_markup)
 
@@ -441,16 +473,18 @@ async def main():
     app.add_handler(CommandHandler("rupload", rupload))
     app.add_handler(CommandHandler("delete", delete))
     app.add_handler(CommandHandler("changetime", changetime))
+    app.add_handler(CommandHandler("ctime", changetime)) 
     app.add_handler(CommandHandler("addadmin", add_admin))
     app.add_handler(CommandHandler("rmadmin", rm_admin))
     app.add_handler(CommandHandler("bcast", bcast))
     
     app.add_handler(CommandHandler("balance", balance))
     app.add_handler(CommandHandler("daily", daily))
-    app.add_handler(CommandHandler("gift", gift)) # Added GIFT
-    app.add_handler(CommandHandler("top", top)) # Added TOP
-    app.add_handler(CommandHandler("shop", shop)) # Added SHOP
-    app.add_handler(CommandHandler("rclaim", rclaim)) # Added RCLAIM
+    app.add_handler(CommandHandler("gift", gift))
+    app.add_handler(CommandHandler("trade", trade)) 
+    app.add_handler(CommandHandler("top", top))
+    app.add_handler(CommandHandler("shop", shop))
+    app.add_handler(CommandHandler("rclaim", rclaim))
     
     app.add_handler(CommandHandler("harem", harem))
     app.add_handler(CommandHandler("guess", guess))
