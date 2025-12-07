@@ -27,7 +27,7 @@ async def daily(update: Update, context: CallbackContext) -> None:
         await update.message.reply_text(f"❌ **Wait karo!** Agla reward {hours}h {minutes}m baad milega.")
         return
 
-    # Reward (e.g., 200 Coins)
+    # Reward
     reward = 200
     await user_collection.update_one({'id': user_id}, {
         '$inc': {'balance': reward},
