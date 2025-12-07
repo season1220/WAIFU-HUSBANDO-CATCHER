@@ -10,10 +10,15 @@ from telegram.ext import CommandHandler, CallbackContext, MessageHandler, filter
 
 from shivu import collection, top_global_groups_collection, group_user_totals_collection, user_collection, user_totals_collection, application, SUPPORT_CHAT, UPDATE_CHAT, db, LOGGER, shivuu
 
-# --- SABHI MODULES LOAD ---
-# Yahan 'balance' aur 'roll' add kar diya hai
-from shivu.modules import upload, manage, start, help, harem, leaderboard, trade, extras, settings, changetime, balance, roll
-# --------------------------
+# --- 🟢 AUTOMATIC MODULE LOADER (Sabse Important) ---
+from shivu.modules import ALL_MODULES
+
+LOGGER.info("Modules Load ho rahe hain...")
+for module_name in ALL_MODULES:
+    # Ye loop folder ki har file (roll, balance, upload etc) ko load karega
+    importlib.import_module("shivu.modules." + module_name)
+    LOGGER.info(f"Loaded: {module_name}")
+# ----------------------------------------------------
 
 locks = {}
 message_counters = {}
@@ -87,18 +92,16 @@ async def guess(update: Update, context: CallbackContext) -> None:
     if sorted(name_parts) == sorted(guess.split()) or any(part == guess for part in name_parts):
         first_correct_guesses[chat_id] = user_id
         
-        # --- TIME CALCULATION ---
+        # TIME & REWARD
         time_taken = "Unknown"
         if chat_id in spawn_times:
             seconds = time.time() - spawn_times[chat_id]
             time_taken = f"{seconds:.2f} seconds"
-
-        # --- COIN REWARD SYSTEM (NOBITA STYLE) ---
-        # Sahi guess karne par 50 Coins milenge
+        
         COIN_REWARD = 50
         await user_collection.update_one({'id': user_id}, {'$inc': {'balance': COIN_REWARD}})
 
-        # Database Update
+        # DB Updates
         user = await user_collection.find_one({'id': user_id})
         if user:
             await user_collection.update_one({'id': user_id}, {'$push': {'characters': last_characters[chat_id]}})
@@ -109,7 +112,6 @@ async def guess(update: Update, context: CallbackContext) -> None:
         await top_global_groups_collection.update_one({'group_id': chat_id}, {'$inc': {'count': 1}, '$set': {'group_name': update.effective_chat.title}}, upsert=True)
 
         keyboard = [[InlineKeyboardButton(f"See Harem", switch_inline_query_current_chat=f"collection.{user_id}")]]
-        
         await update.message.reply_text(
             f'<b><a href="tg://user?id={user_id}">{escape(update.effective_user.first_name)}</a></b>, you\'ve captured a new character! 🎊\n\n'
             f'📛 <b>NAME:</b> {last_characters[chat_id]["name"]} \n'
