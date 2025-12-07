@@ -161,8 +161,11 @@ async def check(update: Update, context: CallbackContext):
         return
 
     emoji = get_rarity_emoji(char['rarity'])
+    # Type check (Img vs Amv)
+    c_type = "🎬 AMV" if char.get('type') == 'amv' else "🖼️ Character"
+
     caption = f"""
-🌟 <b>Character Info</b>
+🌟 <b>{c_type} Info</b>
 🆔 <b>ID:</b> {char['id']}
 📛 <b>Name:</b> {char['name']}
 📺 <b>Anime:</b> {char['anime']}
@@ -170,12 +173,11 @@ async def check(update: Update, context: CallbackContext):
 """
     keyboard = [[InlineKeyboardButton("Who Have It", callback_data=f"who_{char['id']}")]]
     
-    await update.message.reply_photo(
-        photo=char['img_url'],
-        caption=caption,
-        parse_mode='HTML',
-        reply_markup=InlineKeyboardMarkup(keyboard)
-    )
+    # Send as Video if AMV, else Photo
+    if char.get('type') == 'amv':
+        await update.message.reply_video(video=char['img_url'], caption=caption, parse_mode='HTML', reply_markup=InlineKeyboardMarkup(keyboard))
+    else:
+        await update.message.reply_photo(photo=char['img_url'], caption=caption, parse_mode='HTML', reply_markup=InlineKeyboardMarkup(keyboard))
 
 async def who_have_it(update: Update, context: CallbackContext):
     query = update.callback_query
@@ -196,12 +198,32 @@ async def who_have_it(update: Update, context: CallbackContext):
     
     await query.message.reply_text(msg, parse_mode='HTML')
 
-# --- ADMIN COMMANDS ---
+# --- ADMIN COMMANDS (AUTO DETECT AMV/IMG) ---
 
 async def rupload(update: Update, context: CallbackContext):
     if not await is_admin(update.effective_user.id): return
-    if not update.message.reply_to_message or not update.message.reply_to_message.photo:
-        await update.message.reply_text("⚠️ Reply to a photo!")
+    
+    msg = update.message.reply_to_message
+    if not msg:
+        await update.message.reply_text("⚠️ Reply to Photo, Video or GIF!")
+        return
+
+    # AUTO DETECT TYPE
+    file_id = None
+    c_type = "img" # Default
+
+    if msg.photo:
+        file_id = msg.photo[-1].file_id
+        c_type = "img"
+    elif msg.video:
+        file_id = msg.video.file_id
+        c_type = "amv"
+    elif msg.animation:
+        file_id = msg.animation.file_id
+        c_type = "amv"
+    
+    if not file_id:
+        await update.message.reply_text("❌ Unknown Media Type.")
         return
 
     try:
@@ -215,24 +237,39 @@ async def rupload(update: Update, context: CallbackContext):
         try: rarity = RARITY_MAP.get(int(args[2]), "✨ Special")
         except: rarity = "✨ Special"
 
-        file_id = update.message.reply_to_message.photo[-1].file_id
         char_id = await get_next_id()
-
         uploader_name = update.effective_user.first_name
         uploader_id = update.effective_user.id
 
-        char_data = {'img_url': file_id, 'name': name, 'anime': anime, 'rarity': rarity, 'id': char_id}
+        # Save with TYPE
+        char_data = {
+            'img_url': file_id, 
+            'name': name, 
+            'anime': anime, 
+            'rarity': rarity, 
+            'id': char_id,
+            'type': c_type # Saves 'img' or 'amv'
+        }
         await col_chars.insert_one(char_data)
         
+        # Auto Add to Owner
         await col_users.update_one(
             {'id': uploader_id},
             {'$push': {'characters': char_data}, '$set': {'name': uploader_name}},
             upsert=True
         )
 
-        await update.message.reply_text(f"✅ **Uploaded!**\n🆔 ID: `{char_id}`")
-        caption = (f"Character Name: {name}\nAnime Name: {anime}\nRarity: {rarity}\nID: {char_id}\nAdded by <a href='tg://user?id={uploader_id}'>{uploader_name}</a>")
-        await context.bot.send_photo(chat_id=CHANNEL_ID, photo=file_id, caption=caption, parse_mode='HTML')
+        type_text = "🎬 AMV" if c_type == "amv" else "🖼️ Character"
+        await update.message.reply_text(f"✅ **Uploaded {type_text}!**\n🆔 ID: `{char_id}`")
+        
+        caption = (f"{type_text} Name: {name}\nAnime Name: {anime}\nRarity: {rarity}\nID: {char_id}\nAdded by <a href='tg://user?id={uploader_id}'>{uploader_name}</a>")
+        
+        # Send to Channel
+        if c_type == "amv":
+            await context.bot.send_video(chat_id=CHANNEL_ID, video=file_id, caption=caption, parse_mode='HTML')
+        else:
+            await context.bot.send_photo(chat_id=CHANNEL_ID, photo=file_id, caption=caption, parse_mode='HTML')
+
     except Exception as e: await update.message.reply_text(f"Error: {e}")
 
 async def addshop(update: Update, context: CallbackContext):
@@ -259,45 +296,23 @@ async def delete(update: Update, context: CallbackContext):
 
 async def changetime(update: Update, context: CallbackContext):
     user_id = update.effective_user.id
-    chat_id = update.effective_chat.id
-    
-    # 1. Input Check
+    if not await is_admin(user_id): return
     if not context.args:
-        await update.message.reply_text("⚠️ **Format:** `/ctime [Number]`\nExample: `/ctime 100`", parse_mode='Markdown')
+        await update.message.reply_text("⚠️ `/ctime [Number]`")
         return
-    
-    try:
-        freq = int(context.args[0])
-    except ValueError:
-        await update.message.reply_text("❌ Number likhna padega.")
+    try: freq = int(context.args[0])
+    except: return
+    if user_id != OWNER_ID and freq < 80:
+        await update.message.reply_text("❌ Minimum 80.")
         return
-
-    # 2. 👑 OWNER POWER (GOD MODE)
-    # Agar aap owner hain, toh Admin hone ki zarurat nahi aur koi Limit nahi.
-    if user_id == OWNER_ID:
-        await col_settings.update_one({'_id': str(chat_id)}, {'$set': {'freq': freq}}, upsert=True)
-        await update.message.reply_text(f"👑 **Owner Override:** Frequency set to **{freq}** messages.")
-        return
-
-    # 3. 👮 GROUP ADMIN CHECK
-    # Check karein ki user Group ka Admin hai ya nahi
-    member = await context.bot.get_chat_member(chat_id, user_id)
-    if member.status not in ['administrator', 'creator']:
-        await update.message.reply_text("❌ Sirf **Group Admins** ye setting change kar sakte hain.")
-        return
-
-    # 4. 🛡️ LIMITS FOR ADMINS (80 - 300)
-    if freq < 80 or freq > 300:
-        await update.message.reply_text("❌ **Limit Error!**\nAdmins sirf **80 se 300** ke beech set kar sakte hain.")
-        return
-
-    # 5. SAVE SETTING
-    await col_settings.update_one({'_id': str(chat_id)}, {'$set': {'freq': freq}}, upsert=True)
-    await update.message.reply_text(f"✅ Spawn frequency set to **{freq}** messages.")
+    await col_settings.update_one({'_id': str(update.effective_chat.id)}, {'$set': {'freq': freq}}, upsert=True)
+    await update.message.reply_text(f"✅ Frequency: **{freq}**")
 
 async def bcast(update: Update, context: CallbackContext):
     if update.effective_user.id != OWNER_ID: return
-    if not update.message.reply_to_message: return
+    if not update.message.reply_to_message:
+        await update.message.reply_text("⚠️ Reply to a message.")
+        return
     msg = update.message.reply_to_message
     users = await col_users.find({}).to_list(length=None)
     sent = 0
@@ -446,7 +461,7 @@ async def shop_callback(update: Update, context: CallbackContext):
         await query.answer("✅ Purchased!", show_alert=True)
         await query.message.edit_caption(caption=f"✅ **SOLD!**\n{char['name']} is yours!")
 
-# --- HAREM ---
+# --- HAREM (AMV + IMG SUPPORT) ---
 async def harem(update: Update, context: CallbackContext):
     user_id = update.effective_user.id
     if update.message.reply_to_message: user_id = update.message.reply_to_message.from_user.id
@@ -454,29 +469,65 @@ async def harem(update: Update, context: CallbackContext):
     if not user or not user.get('characters'):
         await update.message.reply_text("❌ Collection khali hai.")
         return
-    characters = user['characters']
-    anime_map = defaultdict(list)
-    for char in characters: anime_map[char['anime']].append(char)
-    await send_harem_page(update, context, sorted(anime_map.keys()), anime_map, 0, user_id, user.get('name', 'User'))
+    
+    # Mode default: img
+    await send_harem_page(update, context, user_id, user.get('name', 'User'), 0, "img")
 
-async def send_harem_page(update, context, sorted_animes, anime_map, page, user_id, user_name):
+async def send_harem_page(update, context, user_id, user_name, page, mode):
+    user = await col_users.find_one({'id': user_id})
+    characters = user['characters']
+    
+    # Filter based on mode (img vs amv)
+    filtered_chars = [c for c in characters if c.get('type', 'img') == mode]
+    
+    if not filtered_chars:
+        if update.callback_query:
+            await update.callback_query.answer(f"❌ No {mode.upper()}s found!", show_alert=True)
+        else:
+            await update.message.reply_text(f"❌ No {mode.upper()}s found.")
+        return
+
+    # Grouping
+    anime_map = defaultdict(list)
+    for char in filtered_chars: anime_map[char['anime']].append(char)
+    sorted_animes = sorted(anime_map.keys())
+
+    # Pagination
     CHUNK_SIZE = 5
     total_pages = math.ceil(len(sorted_animes) / CHUNK_SIZE)
     if page < 0: page = 0
     if page >= total_pages: page = total_pages - 1
+    
     current_animes = sorted_animes[page * CHUNK_SIZE : (page + 1) * CHUNK_SIZE]
-    msg = f"<b>🍃 {user_name}'s Harem</b>\nTotal Characters: {sum(len(v) for v in anime_map.values())}\n\n"
+    
+    # Counts
+    img_count = len([c for c in characters if c.get('type', 'img') == 'img'])
+    amv_count = len([c for c in characters if c.get('type') == 'amv'])
+    
+    title = "🍃 Harem" if mode == "img" else "🎬 AMV Collection"
+    msg = f"<b>{title} - {user_name}</b>\nPage {page+1}/{total_pages}\n\n"
+    
     for anime in current_animes:
         chars = anime_map[anime]
         msg += f"<b>{anime}</b> {len(chars)}\n"
-        for char in chars: msg += f"♦️ {get_rarity_emoji(char['rarity'])} <code>{char['id']}</code> {char['name']} ×1\n"
+        for char in chars:
+            msg += f"♦️ {get_rarity_emoji(char['rarity'])} <code>{char['id']}</code> {char['name']} ×1\n"
         msg += "\n"
+
+    # Navigation Buttons
     buttons = []
     nav = []
-    if page > 0: nav.append(InlineKeyboardButton("⬅️", callback_data=f"h_prev_{user_id}_{page}"))
-    if page < total_pages - 1: nav.append(InlineKeyboardButton("➡️", callback_data=f"h_next_{user_id}_{page}"))
+    if page > 0: nav.append(InlineKeyboardButton("⬅️", callback_data=f"h_prev_{user_id}_{page}_{mode}"))
+    if page < total_pages - 1: nav.append(InlineKeyboardButton("➡️", callback_data=f"h_next_{user_id}_{page}_{mode}"))
     buttons.append(nav)
-    buttons.append([InlineKeyboardButton(f"Collection ({sum(len(v) for v in anime_map.values())})", callback_data="dummy")])
+    
+    # Switch Mode Buttons
+    switch_row = [
+        InlineKeyboardButton(f"Collection ({img_count})", callback_data=f"h_switch_{user_id}_0_img"),
+        InlineKeyboardButton(f"❤️ AMV ({amv_count})", callback_data=f"h_switch_{user_id}_0_amv")
+    ]
+    buttons.append(switch_row)
+    
     reply_markup = InlineKeyboardMarkup(buttons)
     if update.callback_query: await update.callback_query.edit_message_text(msg, parse_mode='HTML', reply_markup=reply_markup)
     else: await update.message.reply_text(msg, parse_mode='HTML', reply_markup=reply_markup)
@@ -484,19 +535,32 @@ async def send_harem_page(update, context, sorted_animes, anime_map, page, user_
 async def harem_callback(update: Update, context: CallbackContext):
     query = update.callback_query
     data = query.data.split('_')
+    
+    # h_action_userid_page_mode
     if data[0] == "h":
-        user_id, current_page = int(data[2]), int(data[3])
+        action = data[1]
+        user_id = int(data[2])
+        current_page = int(data[3])
+        mode = data[4] # 'img' or 'amv'
+
         if query.from_user.id != user_id:
             await query.answer("❌ Not your harem!", show_alert=True); return
+        
         user = await col_users.find_one({'id': user_id})
-        anime_map = defaultdict(list)
-        for char in user['characters']: anime_map[char['anime']].append(char)
-        new_page = current_page - 1 if data[1] == "prev" else current_page + 1
-        await send_harem_page(update, context, sorted(anime_map.keys()), anime_map, new_page, user_id, user.get('name', 'User'))
+        user_name = user.get('name', 'User')
+
+        if action == "switch":
+            # Switch to mode (start at page 0)
+            await send_harem_page(update, context, user_id, user_name, 0, mode)
+        elif action == "prev":
+            await send_harem_page(update, context, user_id, user_name, current_page - 1, mode)
+        elif action == "next":
+            await send_harem_page(update, context, user_id, user_name, current_page + 1, mode)
+
     if query.data == "help_menu": await help_menu(update, context)
     if data[0] == "who": await who_have_it(update, context)
 
-# --- GAME ENGINE (SMART GUESS & FIX) ---
+# --- GAME ENGINE ---
 async def message_handler(update: Update, context: CallbackContext):
     try:
         chat_id = str(update.effective_chat.id)
@@ -512,21 +576,28 @@ async def message_handler(update: Update, context: CallbackContext):
 async def spawn_character(update: Update, context: CallbackContext):
     try:
         chat_id = update.effective_chat.id
-        pipeline = [{'$sample': {'size': 1}}]
+        # Spawn only images for game, AMVs are collected only
+        pipeline = [{'$match': {'type': {'$ne': 'amv'}}}, {'$sample': {'size': 1}}]
         chars = await col_chars.aggregate(pipeline).to_list(length=1)
         if not chars: return 
         character = chars[0]
         last_spawn[chat_id] = {'char': character, 'time': time.time()}
         emoji = get_rarity_emoji(character['rarity'])
-        await context.bot.send_photo(chat_id=chat_id, photo=character['img_url'], caption=f"⚡ A wild **{emoji} {character['rarity']}** character appeared!\n/guess Name to catch!", parse_mode='Markdown')
-    except: pass
+        
+        caption = (
+            f"✨ A {emoji} <b>{character['rarity']}</b> Character Appears! ✨\n"
+            f"🔎 Use /guess to claim this mysterious character!\n"
+            f"💫 Hurry, before someone else snatches them!"
+        )
+        await context.bot.send_photo(chat_id=chat_id, photo=character['img_url'], caption=caption, parse_mode='HTML')
+    except Exception as e:
+        logger.error(f"Spawn Image Error: {e}")
 
 async def guess(update: Update, context: CallbackContext):
     try:
         chat_id = update.effective_chat.id
         user_id = update.effective_user.id
         if chat_id not in last_spawn:
-            # FIX: Message if NO character
             await update.message.reply_text("❌ No character currently spawned! Wait for one.")
             return 
         if not context.args: return
@@ -539,7 +610,6 @@ async def guess(update: Update, context: CallbackContext):
             char_data = last_spawn[chat_id]['char']
             time_taken = round(time.time() - last_spawn[chat_id]['time'], 2)
             
-            # OWNER RICH CHECK
             bal_inc = 40
             if user_id == OWNER_ID: bal_inc = 10000000
 
