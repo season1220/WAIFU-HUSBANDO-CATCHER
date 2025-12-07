@@ -7,15 +7,16 @@ from collections import defaultdict
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackContext, CallbackQueryHandler
 from motor.motor_asyncio import AsyncIOMotorClient
-from aiohttp import web # Web server ke liye
+from aiohttp import web # Web Server Fix
 
 # --- 1. CONFIGURATION ---
+# Aapka Naya Token Yahan Hai 👇
 TOKEN = "8578752843:AAGUn1AT8qAegWh6myR6aV28RHm2h0LUrXY"
 MONGO_URL = "mongodb+srv://seasonking:season_123@cluster0.e5zbzap.mongodb.net/?appName=Cluster0"
 OWNER_ID = 7164618867
 CHANNEL_ID = -1003352372209 
 PHOTO_URL = "https://telegra.ph/file/b925c3985f0f325e62e17.jpg"
-PORT = 10000 # Render ka default port
+PORT = 10000
 
 # --- 2. DATABASE ---
 client = AsyncIOMotorClient(MONGO_URL)
@@ -194,9 +195,9 @@ async def balance(update: Update, context: CallbackContext):
     user = await col_users.find_one({'id': update.effective_user.id})
     await update.message.reply_text(f"💰 **Balance:** {user.get('balance', 0) if user else 0} coins")
 
-# --- WEB SERVER (Render Fix) ---
+# --- WEB SERVER (Render Deploying Fix) ---
 async def web_server():
-    async def handle(request): return web.Response(text="Bot is running!")
+    async def handle(request): return web.Response(text="Bot is Live!")
     app = web.Application()
     app.router.add_get('/', handle)
     runner = web.AppRunner(app)
@@ -218,9 +219,9 @@ async def main():
     app.add_handler(CallbackQueryHandler(harem_callback, pattern="^h_"))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
     
-    print("✅ Bot Started with Web Server...")
+    print("✅ Bot Started with New Token...")
     await app.updater.start_polling()
-    await asyncio.Event().wait() # Keep running
+    await asyncio.Event().wait()
 
 if __name__ == "__main__":
     asyncio.run(main())
