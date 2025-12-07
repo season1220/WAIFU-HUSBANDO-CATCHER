@@ -10,8 +10,10 @@ logging.basicConfig(
 )
 LOGGER = logging.getLogger(__name__)
 
-# --- 2. CONFIG SETTINGS (Direct) ---
-TOKEN = "8578752843:AAHNWJAKLmZ_pc9tHPgyhUtnjOKxtXD6mM8"
+# --- 2. CONFIG SETTINGS ---
+# ⚠️ DHYAN DEIN: Niche wali line me Naya Token paste karein
+TOKEN = "8578752843:AAGUn1AT8qAegWh6myR6aV28RHm2h0LUrXY" 
+
 mongo_url = "mongodb+srv://seasonking:season_123@cluster0.e5zbzap.mongodb.net/?appName=Cluster0"
 OWNER_ID = 7164618867
 sudo_users = [7164618867]
@@ -24,11 +26,10 @@ PHOTO_URL = ["https://telegra.ph/file/b925c3985f0f325e62e17.jpg", "https://teleg
 api_id = 34967775
 api_hash = "e6e5dfae5327f90410863f93d8ced26b"
 
-# --- 3. DATABASE CONNECTION (Ye Missing Tha) ---
+# --- 3. DATABASE CONNECTION ---
 client = AsyncIOMotorClient(mongo_url)
 db = client['Character_catcher']
 
-# Ye wo naam hain jo baaki files dhund rahi hain
 collection = db['anime_characters']
 user_collection = db["user_collection_lmao"]
 group_user_totals_collection = db["group_user_totals_collection"]
