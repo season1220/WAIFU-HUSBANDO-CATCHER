@@ -134,7 +134,6 @@ async def inline_query(update: Update, context: CallbackContext):
 async def start(update: Update, context: CallbackContext):
     try:
         user = update.effective_user
-        # --- NEW USER LOG ---
         user_db = await col_users.find_one({'id': user.id})
         if not user_db:
             await col_users.insert_one({'id': user.id, 'name': user.first_name, 'balance': 0, 'characters': []})
@@ -153,7 +152,6 @@ async def start(update: Update, context: CallbackContext):
 {chosen_text}
 
 ✧━━━━━━━━━━━━✧
-
 ◎ 𝐅𝐞𝐚𝐭𝐮𝐫𝐞𝐬:
 • Premium Waifu Spawns
 • Fast Response Engine
@@ -162,13 +160,10 @@ async def start(update: Update, context: CallbackContext):
 ◎ 𝐔𝐬𝐚𝐠𝐞:
 • Add me to Group
 • Open Help Menu
-
 ✧━━━━━━━━━━━━✧
 
 📶 Ping: {ping}
 ⏱️ Uptime: {uptime}
-
-✧━━━━━━━━━━━━✧
 """
         keyboard = [
             [InlineKeyboardButton("👥 Add to Group", url=f"http://t.me/{BOT_USERNAME}?startgroup=new")],
@@ -203,7 +198,7 @@ async def help_menu(update: Update, context: CallbackContext):
     if update.callback_query: await update.callback_query.message.reply_text(msg, parse_mode='HTML')
     else: await update.message.reply_text(msg, parse_mode='HTML')
 
-# --- ADMIN COMMANDS ---
+# --- ADMIN COMMANDS (STYLISH ERRORS ADDED) ---
 
 async def stats(update: Update, context: CallbackContext):
     if update.effective_user.id != OWNER_ID: return
@@ -214,18 +209,23 @@ async def rupload(update: Update, context: CallbackContext):
     if not await is_admin(update.effective_user.id): return
     msg = update.message.reply_to_message
     if not msg: 
-        await update.message.reply_text("⚠️ **Error:** Photo/Video par REPLY karke command use karein!")
+        await update.message.reply_text("⚠️ **Wrong Format!**\n\nPlease reply to a Photo/Video.")
         return
 
     file_id, c_type = (msg.photo[-1].file_id, "img") if msg.photo else (msg.video.file_id, "amv") if msg.video else (msg.animation.file_id, "amv") if msg.animation else (None, None)
     if not file_id: 
-        await update.message.reply_text("❌ Ye Photo ya Video nahi hai.")
+        await update.message.reply_text("❌ Media not found.")
         return
 
     try:
         args = context.args
         if len(args) < 3: 
-            await update.message.reply_text("⚠️ **Format:** `/rupload Name Anime Number`")
+            await update.message.reply_text(
+                "⚠️ <b>Incorrect Syntax!</b>\n\n"
+                "ℹ️ <b>Usage:</b> <code>/rupload Name Anime Number</code>\n"
+                "💡 <b>Example:</b> <code>/rupload Goku Dragon-Ball 5</code>",
+                parse_mode='HTML'
+            )
             return
         
         name = args[0].replace('-', ' ').title()
@@ -250,29 +250,48 @@ async def rupload(update: Update, context: CallbackContext):
 async def addshop(update: Update, context: CallbackContext):
     if not await is_admin(update.effective_user.id): return
     try:
-        char_id, price = context.args[0], int(context.args[1])
+        args = context.args
+        if len(args) < 2:
+            await update.message.reply_text(
+                "⚠️ <b>Incorrect Syntax!</b>\n\n"
+                "ℹ️ <b>Usage:</b> <code>/addshop [ID] [Price]</code>\n"
+                "💡 <b>Example:</b> <code>/addshop 01 5000</code>",
+                parse_mode='HTML'
+            )
+            return
+
+        char_id, price = args[0], int(args[1])
         await col_chars.update_one({'id': char_id}, {'$set': {'price': price}})
         await update.message.reply_text(f"✅ Shop Item: {price}")
     except: pass
 
 async def delete(update: Update, context: CallbackContext):
     if not await is_admin(update.effective_user.id): return
-    if not context.args: return
+    if not context.args: 
+        await update.message.reply_text("⚠️ <b>Usage:</b> <code>/delete [ID]</code>", parse_mode='HTML')
+        return
     res = await col_chars.delete_one({'id': context.args[0]})
     await update.message.reply_text(f"✅ Deleted." if res.deleted_count else "❌ Not found.")
 
 async def changetime(update: Update, context: CallbackContext):
     user_id = update.effective_user.id
     if not await is_admin(user_id): return
-    try: freq = int(context.args[0])
-    except: return
+    try: 
+        if not context.args: raise ValueError
+        freq = int(context.args[0])
+    except: 
+        await update.message.reply_text("⚠️ <b>Usage:</b> <code>/ctime [Number]</code>", parse_mode='HTML')
+        return
+    
     if user_id != OWNER_ID and (freq < 80 or freq > 300): return
     await col_settings.update_one({'_id': str(update.effective_chat.id)}, {'$set': {'freq': freq}}, upsert=True)
     await update.message.reply_text(f"✅ Frequency: {freq}")
 
 async def bcast(update: Update, context: CallbackContext):
     if update.effective_user.id != OWNER_ID: return
-    if not update.message.reply_to_message: return
+    if not update.message.reply_to_message: 
+        await update.message.reply_text("⚠️ Reply to a message.")
+        return
     msg = update.message.reply_to_message
     users = await col_users.find({}).to_list(length=None)
     for u in users:
@@ -297,11 +316,9 @@ async def rm_admin(update: Update, context: CallbackContext):
 # --- FEATURES ---
 
 async def daily(update: Update, context: CallbackContext):
-    # FORCE SUB REMOVED HERE
     user_id = update.effective_user.id
     user = await col_users.find_one({'id': user_id})
     if not user: return
-    
     # OWNER BYPASS
     if user_id != OWNER_ID:
         last_daily = user.get('last_daily', 0)
@@ -312,9 +329,15 @@ async def daily(update: Update, context: CallbackContext):
 
 async def gift(update: Update, context: CallbackContext):
     sender_id = update.effective_user.id
-    if not update.message.reply_to_message: return
+    if not update.message.reply_to_message: 
+        await update.message.reply_text("⚠️ <b>Usage:</b> Reply to user -> <code>/gift [ID]</code>", parse_mode='HTML')
+        return
     receiver_id = update.message.reply_to_message.from_user.id
     if sender_id == receiver_id: return
+    if not context.args:
+        await update.message.reply_text("⚠️ <b>Error:</b> Please provide Character ID.", parse_mode='HTML')
+        return
+
     char_id = context.args[0]
     sender = await col_users.find_one({'id': sender_id})
     char = next((c for c in sender.get('characters', []) if c['id'] == char_id), None)
@@ -337,11 +360,9 @@ async def balance(update: Update, context: CallbackContext):
     await update.message.reply_text(f"💰 **Balance:** {bal} coins")
 
 async def rclaim(update: Update, context: CallbackContext):
-    # FORCE SUB REMOVED HERE
     user_id = update.effective_user.id
     user = await col_users.find_one({'id': user_id})
     if not user: return
-    
     # OWNER BYPASS
     if user_id != OWNER_ID:
         last_rclaim = user.get('last_rclaim', 0)
@@ -355,7 +376,9 @@ async def rclaim(update: Update, context: CallbackContext):
     await update.message.reply_photo(photo=char['img_url'], caption=f"🎁 Free: {char['name']}")
 
 async def fav(update: Update, context: CallbackContext):
-    if not context.args: return
+    if not context.args:
+        await update.message.reply_text("⚠️ <b>Usage:</b> <code>/fav [ID]</code>", parse_mode='HTML')
+        return
     user_id = update.effective_user.id
     user = await col_users.find_one({'id': user_id})
     char = next((c for c in user.get('characters', []) if c['id'] == context.args[0]), None)
@@ -364,7 +387,9 @@ async def fav(update: Update, context: CallbackContext):
     await update.message.reply_text(f"❤️ Favorite set: {char['name']}")
 
 async def check(update: Update, context: CallbackContext):
-    if not context.args: return
+    if not context.args:
+        await update.message.reply_text("⚠️ <b>Usage:</b> <code>/check [ID]</code>", parse_mode='HTML')
+        return
     char = await col_chars.find_one({'id': context.args[0]})
     if not char: return
     emoji = get_rarity_emoji(char['rarity'])
@@ -390,7 +415,14 @@ async def market(update: Update, context: CallbackContext):
 
 async def sell(update: Update, context: CallbackContext):
     user_id = update.effective_user.id
-    if len(context.args) < 2: await update.message.reply_text("⚠️ `/sell [ID] [Price]`"); return
+    if len(context.args) < 2:
+        await update.message.reply_text(
+            "⚠️ <b>Incorrect Syntax!</b>\n\n"
+            "ℹ️ <b>Usage:</b> <code>/sell [ID] [Price]</code>",
+            parse_mode='HTML'
+        )
+        return
+    
     char_id, price = context.args[0], int(context.args[1])
     user = await col_users.find_one({'id': user_id})
     char = next((c for c in user.get('characters', []) if c['id'] == char_id), None)
@@ -402,7 +434,9 @@ async def sell(update: Update, context: CallbackContext):
 
 async def buy(update: Update, context: CallbackContext):
     user_id = update.effective_user.id
-    if not context.args: await update.message.reply_text("⚠️ `/buy [ID]`"); return
+    if not context.args:
+        await update.message.reply_text("⚠️ <b>Usage:</b> <code>/buy [ID]</code>", parse_mode='HTML')
+        return
     char_id = context.args[0]
     item = await col_market.find_one({'id': char_id})
     if not item: await update.message.reply_text("❌ Sold/Invalid."); return
@@ -434,7 +468,9 @@ async def profile(update: Update, context: CallbackContext):
 
 async def marry(update: Update, context: CallbackContext):
     user_id = update.effective_user.id
-    if not context.args: await update.message.reply_text("⚠️ `/marry [ID]`"); return
+    if not context.args:
+        await update.message.reply_text("⚠️ <b>Usage:</b> <code>/marry [ID]</code>", parse_mode='HTML')
+        return
     char_id = context.args[0]
     user = await col_users.find_one({'id': user_id})
     if user.get('married_to'): await update.message.reply_text("❌ Already married!"); return
@@ -450,24 +486,23 @@ async def divorce(update: Update, context: CallbackContext):
 
 async def burn(update: Update, context: CallbackContext):
     user_id = update.effective_user.id
-    if not context.args: return
+    if not context.args: 
+        await update.message.reply_text("⚠️ <b>Usage:</b> <code>/burn [ID]</code>", parse_mode='HTML')
+        return
     char_id = context.args[0]
     await col_users.update_one({'id': user_id}, {'$pull': {'characters': {'id': char_id}}, '$inc': {'balance': 200}})
     await update.message.reply_text("🔥 Burned for 200 coins.")
 
 async def adventure(update: Update, context: CallbackContext):
-    # FORCE SUB REMOVED HERE
     user_id = update.effective_user.id
     user = await col_users.find_one({'id': user_id})
     if not user: return
-    
     # OWNER BYPASS
     if user_id != OWNER_ID:
         last_adv = user.get('last_adv', 0)
         if time.time() - last_adv < 3600:
             rem = int(3600 - (time.time() - last_adv)) // 60
             await update.message.reply_text(f"⏳ Rest for {rem} mins!"); return
-            
     await col_users.update_one({'id': user_id}, {'$set': {'last_adv': time.time()}})
     events = [("Found a chest!", 500), ("Killed a slime!", 200), ("Lost map...", 0), ("Tripped!", -50)]
     evt, coins = random.choice(events)
@@ -589,8 +624,6 @@ async def guess(update: Update, context: CallbackContext):
         guess_w = " ".join(context.args).lower()
         real_n = last_spawn[chat_id]['char']['name'].lower()
         if guess_w == real_n or any(p == guess_w for p in real_n.split()):
-            # FORCE SUB REMOVED
-            
             char = last_spawn[chat_id]['char']
             t = round(time.time() - last_spawn[chat_id]['time'], 2)
             bal = 10000000 if update.effective_user.id == OWNER_ID else 40
