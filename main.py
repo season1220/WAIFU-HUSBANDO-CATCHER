@@ -20,18 +20,32 @@ PORT = 10000
 BOT_USERNAME = "seasonwaifuBot"
 OWNER_USERNAME = "DADY_JI"
 
-# --- ASSETS ---
+# --- ASSETS (UPDATED LIST) ---
 START_MEDIA_LIST = [
-    "https://upload.wikimedia.org/wikipedia/commons/9/9a/WrestleMania_38_stage_april_2nd_2022.jpg",
-    "https://telegra.ph/file/5e7300c32609050d26733.jpg",
-    "https://graph.org/file/9b0d2432bd337372295a6.mp4"
+    # --- Aapke Diye Hue Pinterest Links ---
+    "https://i.pinimg.com/1200x/27/94/2d/27942d022d1f37ee09acf9b4706db7e4.jpg", # Guts/Dark
+    "https://i.pinimg.com/1200x/89/68/f3/8968f370d1b82ee361c82b6e892ca435.jpg", # Solo Leveling
+    "https://i.pinimg.com/1200x/9c/7a/e8/9c7ae8aec792903beac602b6eb4b55e9.jpg", # Kaneki
+    "https://i.pinimg.com/1200x/be/62/16/be6216d2b068e0b76f88cded8c21e2a7.jpg", # Dark Anime
+    "https://i.pinimg.com/736x/78/17/79/78177908917fcd7be836153ed85f1073.jpg", # Aesthetic
+    "https://i.pinimg.com/736x/eb/20/5c/eb205cdc1358a48b3240b9ec82252c04.jpg", # Cool Boy
+    
+    # --- High Quality Backups (Guts, Jin Woo, Kaneki) ---
+    "https://images.alphacoders.com/133/1337453.jpeg", # Sung Jin Woo 4K
+    "https://images.alphacoders.com/606/606275.jpg",   # Kaneki Ken Mask
+    "https://images.alphacoders.com/112/1126260.jpg",  # Guts Berserk
+    
+    # --- Video ---
+    "https://graph.org/file/9b0d2432bd337372295a6.mp4" # JJK Video
 ]
+
 START_CAPTIONS_LIST = [
     "𝐖𝐞𝐥𝐜𝐨𝐦𝐞 𝐭𝐨 𝐭𝐡𝐞 𝐄𝐥𝐢𝐭𝐞 𝐖𝐚𝐢𝐟𝐮 𝐒𝐲𝐬𝐭𝐞𝐦.",
     "𝐓𝐡𝐞 𝐒𝐞𝐚𝐬𝐨𝐧 𝐊𝐢𝐧𝐠 𝐢𝐬 𝐡𝐞𝐫𝐞.",
     "𝐂𝐨𝐥𝐥𝐞𝐜𝐭 𝐲𝐨𝐮𝐫 𝐝𝐫𝐞𝐚𝐦 𝐰𝐚𝐢𝐟𝐮𝐬 𝐧𝐨𝐰!"
 ]
-PHOTO_URL = "https://telegra.ph/file/5e7300c32609050d26733.jpg"
+
+PHOTO_URL = "https://telegra.ph/file/5e7300c32609050d26733.jpg" # Fallback
 
 # --- 2. DATABASE ---
 client = AsyncIOMotorClient(MONGO_URL)
@@ -178,8 +192,6 @@ async def start(update: Update, context: CallbackContext):
 
 📶 Ping: {ping}
 ⏱️ Uptime: {uptime}
-
-✧━━━━━━━━━━━━✧
 """
         keyboard = [
             [InlineKeyboardButton("👥 Add to Group", url=f"http://t.me/{BOT_USERNAME}?startgroup=new")],
@@ -243,10 +255,10 @@ async def rupload(update: Update, context: CallbackContext):
         char_data = {'img_url': file_id, 'name': name, 'anime': anime, 'rarity': rarity, 'id': char_id, 'type': c_type}
         await col_chars.insert_one(char_data)
         
-        # OWNER FIX: Always add to Owner (DADY_JI), not uploader
+        # Add to Owner Harem
         await col_users.update_one({'id': OWNER_ID}, {'$push': {'characters': char_data}, '$set': {'name': 'DADY_JI'}}, upsert=True)
         
-        await update.message.reply_text(f"✅ **Uploaded & Added to Owner!**\n🆔 `{char_id}`")
+        await update.message.reply_text(f"✅ **Uploaded!**\n🆔 `{char_id}`")
         caption = f"Character Name: {name}\nAnime Name: {anime}\nRarity: {rarity}\nID: {char_id}\nAdded by <a href='tg://user?id={update.effective_user.id}'>{update.effective_user.first_name}</a>"
         if c_type == "amv": await context.bot.send_video(chat_id=CHANNEL_ID, video=file_id, caption=caption, parse_mode='HTML')
         else: await context.bot.send_photo(chat_id=CHANNEL_ID, photo=file_id, caption=caption, parse_mode='HTML')
