@@ -3,7 +3,7 @@ import asyncio
 import random
 import time
 import math
-import os
+from uuid import uuid4
 from collections import defaultdict
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, InlineQueryResultPhoto
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackContext, CallbackQueryHandler, InlineQueryHandler
@@ -15,21 +15,10 @@ from aiohttp import web
 TOKEN = "8578752843:AAGUn1AT8qAegWh6myR6aV28RHm2h0LUrXY"
 MONGO_URL = "mongodb+srv://seasonking:season_123@cluster0.e5zbzap.mongodb.net/?appName=Cluster0"
 OWNER_ID = 7164618867
+CHANNEL_ID = -1003352372209 
 PORT = 10000
 BOT_USERNAME = "seasonwaifuBot"
 OWNER_USERNAME = "DADY_JI"
-
-# --- 🆔 IDs & LINKS SETUP ---
-# 1. LOG CHANNEL (Jahan Upload aur Start logs aayenge)
-CHANNEL_ID = -1003352372209 
-
-# 2. FORCE SUBSCRIBE SETTINGS
-FORCE_CHANNEL_ID = -1003352372209  
-FORCE_CHANNEL_LINK = "https://t.me/seasonwaifuBot" 
-
-# 👇 AAPKI NAYI GROUP ID YAHAN HAI
-FORCE_GROUP_ID = -1003493150156
-FORCE_GROUP_LINK = "https://t.me/+w9o4w3ny2kNmMGM9" 
 
 # --- ASSETS ---
 START_MEDIA_LIST = [
@@ -111,32 +100,6 @@ async def get_next_id():
 async def error_handler(update: object, context: CallbackContext) -> None:
     logger.error(msg="Exception while handling an update:", exc_info=context.error)
 
-# --- FORCE SUBSCRIBE CHECKER ---
-async def check_subscription(update: Update, context: CallbackContext):
-    user_id = update.effective_user.id
-    try:
-        # Check Channel
-        member_ch = await context.bot.get_chat_member(FORCE_CHANNEL_ID, user_id)
-        # Check Group
-        member_gp = await context.bot.get_chat_member(FORCE_GROUP_ID, user_id)
-        
-        if member_ch.status in ['left', 'kicked'] or member_gp.status in ['left', 'kicked']:
-            caption = "🔔 **JOIN THE CHANNEL & GROUP TO CLAIM!** 🔔"
-            keyboard = [
-                [InlineKeyboardButton("📢 Join Channel", url=FORCE_CHANNEL_LINK)],
-                [InlineKeyboardButton("💬 Join Group", url=FORCE_GROUP_LINK)]
-            ]
-            if update.message:
-                await update.message.reply_text(caption, parse_mode='Markdown', reply_markup=InlineKeyboardMarkup(keyboard))
-            elif update.callback_query:
-                await update.callback_query.answer("Join Channel & Group first!", show_alert=True)
-                await update.callback_query.message.reply_text(caption, parse_mode='Markdown', reply_markup=InlineKeyboardMarkup(keyboard))
-            return False
-        return True
-    except Exception as e:
-        # Agar bot admin nahi hai toh error aayega, ignore karke allow kar rahe hain
-        return True
-
 # --- 5. INLINE QUERY ---
 async def inline_query(update: Update, context: CallbackContext):
     query = update.inline_query.query
@@ -209,7 +172,7 @@ async def start(update: Update, context: CallbackContext):
 """
         keyboard = [
             [InlineKeyboardButton("👥 Add to Group", url=f"http://t.me/{BOT_USERNAME}?startgroup=new")],
-            [InlineKeyboardButton("🔧 Support", url=FORCE_GROUP_LINK), InlineKeyboardButton("📣 Channel", url=FORCE_CHANNEL_LINK)],
+            [InlineKeyboardButton("🔧 Support", url=f"https://t.me/{BOT_USERNAME}"), InlineKeyboardButton("📣 Channel", url=f"https://t.me/{BOT_USERNAME}")],
             [InlineKeyboardButton("❓ Help", callback_data="help_menu")],
             [InlineKeyboardButton(f"👑 Owner — @{OWNER_USERNAME}", url=f"https://t.me/{OWNER_USERNAME}")]
         ]
@@ -334,8 +297,7 @@ async def rm_admin(update: Update, context: CallbackContext):
 # --- FEATURES ---
 
 async def daily(update: Update, context: CallbackContext):
-    if not await check_subscription(update, context): return # FORCE SUB CHECK
-    
+    # FORCE SUB REMOVED HERE
     user_id = update.effective_user.id
     user = await col_users.find_one({'id': user_id})
     if not user: return
@@ -375,8 +337,7 @@ async def balance(update: Update, context: CallbackContext):
     await update.message.reply_text(f"💰 **Balance:** {bal} coins")
 
 async def rclaim(update: Update, context: CallbackContext):
-    if not await check_subscription(update, context): return # FORCE SUB CHECK
-
+    # FORCE SUB REMOVED HERE
     user_id = update.effective_user.id
     user = await col_users.find_one({'id': user_id})
     if not user: return
@@ -495,15 +456,18 @@ async def burn(update: Update, context: CallbackContext):
     await update.message.reply_text("🔥 Burned for 200 coins.")
 
 async def adventure(update: Update, context: CallbackContext):
-    if not await check_subscription(update, context): return # FORCE SUB CHECK
-    
+    # FORCE SUB REMOVED HERE
     user_id = update.effective_user.id
     user = await col_users.find_one({'id': user_id})
     if not user: return
-    last_adv = user.get('last_adv', 0)
-    if time.time() - last_adv < 3600:
-        rem = int(3600 - (time.time() - last_adv)) // 60
-        await update.message.reply_text(f"⏳ Rest for {rem} mins!"); return
+    
+    # OWNER BYPASS
+    if user_id != OWNER_ID:
+        last_adv = user.get('last_adv', 0)
+        if time.time() - last_adv < 3600:
+            rem = int(3600 - (time.time() - last_adv)) // 60
+            await update.message.reply_text(f"⏳ Rest for {rem} mins!"); return
+            
     await col_users.update_one({'id': user_id}, {'$set': {'last_adv': time.time()}})
     events = [("Found a chest!", 500), ("Killed a slime!", 200), ("Lost map...", 0), ("Tripped!", -50)]
     evt, coins = random.choice(events)
@@ -625,7 +589,7 @@ async def guess(update: Update, context: CallbackContext):
         guess_w = " ".join(context.args).lower()
         real_n = last_spawn[chat_id]['char']['name'].lower()
         if guess_w == real_n or any(p == guess_w for p in real_n.split()):
-            if not await check_subscription(update, context): return # FORCE SUB CHECK
+            # FORCE SUB REMOVED
             
             char = last_spawn[chat_id]['char']
             t = round(time.time() - last_spawn[chat_id]['time'], 2)
