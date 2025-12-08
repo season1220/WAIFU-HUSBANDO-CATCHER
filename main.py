@@ -20,18 +20,9 @@ PORT = 10000
 BOT_USERNAME = "seasonwaifuBot"
 OWNER_USERNAME = "DADY_JI"
 
-# --- ASSETS ---
-START_MEDIA_LIST = [
-    "https://upload.wikimedia.org/wikipedia/commons/9/9a/WrestleMania_38_stage_april_2nd_2022.jpg",
-    "https://telegra.ph/file/5e7300c32609050d26733.jpg",
-    "https://graph.org/file/9b0d2432bd337372295a6.mp4"
-]
-START_CAPTIONS_LIST = [
-    "𝐖𝐞𝐥𝐜𝐨𝐦𝐞 𝐭𝐨 𝐭𝐡𝐞 𝐄𝐥𝐢𝐭𝐞 𝐖𝐚𝐢𝐟𝐮 𝐒𝐲𝐬𝐭𝐞𝐦.",
-    "𝐓𝐡𝐞 𝐒𝐞𝐚𝐬𝐨𝐧 𝐊𝐢𝐧𝐠 𝐢𝐬 𝐡𝐞𝐫𝐞.",
-    "𝐂𝐨𝐥𝐥𝐞𝐜𝐭 𝐲𝐨𝐮𝐫 𝐝𝐫𝐞𝐚𝐦 𝐰𝐚𝐢𝐟𝐮𝐬 𝐧𝐨𝐰!"
-]
-PHOTO_URL = "https://telegra.ph/file/5e7300c32609050d26733.jpg"
+# --- ASSETS (Start Message) ---
+# Jo image aapne mangi thi
+START_MEDIA = "https://upload.wikimedia.org/wikipedia/commons/9/9a/WrestleMania_38_stage_april_2nd_2022.jpg"
 
 # --- 2. DATABASE ---
 client = AsyncIOMotorClient(MONGO_URL)
@@ -135,13 +126,13 @@ async def start(update: Update, context: CallbackContext):
     try:
         uptime = get_readable_time(int(time.time() - START_TIME))
         ping = f"{random.choice([12, 19, 25, 31])} ms"
-        chosen_media = random.choice(START_MEDIA_LIST)
-        chosen_text = random.choice(START_CAPTIONS_LIST)
+        
         caption = f"""
 ✨ 𝐒𝐞𝐚𝐬𝐨𝐧 𝐖𝐚𝐢𝐟𝐮 𝐂𝐚𝐭𝐜𝐡𝐞𝐫 — @{BOT_USERNAME}
-{chosen_text}
+𝐖𝐞𝐥𝐜𝐨𝐦𝐞 𝐭𝐨 𝐭𝐡𝐞 𝐄𝐥𝐢𝐭𝐞 𝐖𝐚𝐢𝐟𝐮 𝐒𝐲𝐬𝐭𝐞𝐦.
 
 ✧━━━━━━━━━━━━✧
+
 ◎ 𝐅𝐞𝐚𝐭𝐮𝐫𝐞𝐬:
 • Premium Waifu Spawns
 • Fast Response Engine
@@ -150,10 +141,13 @@ async def start(update: Update, context: CallbackContext):
 ◎ 𝐔𝐬𝐚𝐠𝐞:
 • Add me to Group
 • Open Help Menu
+
 ✧━━━━━━━━━━━━✧
 
 📶 Ping: {ping}
 ⏱️ Uptime: {uptime}
+
+✧━━━━━━━━━━━━✧
 """
         keyboard = [
             [InlineKeyboardButton("👥 Add to Group", url=f"http://t.me/{BOT_USERNAME}?startgroup=new")],
@@ -161,10 +155,12 @@ async def start(update: Update, context: CallbackContext):
             [InlineKeyboardButton("❓ Help", callback_data="help_menu")],
             [InlineKeyboardButton(f"👑 Owner — @{OWNER_USERNAME}", url=f"https://t.me/{OWNER_USERNAME}")]
         ]
-        if chosen_media.endswith((".mp4", ".gif")):
-            await update.message.reply_video(video=chosen_media, caption=caption, parse_mode='HTML', reply_markup=InlineKeyboardMarkup(keyboard))
+        
+        # Check if URL is video or image
+        if START_MEDIA.endswith((".mp4", ".gif")):
+            await update.message.reply_video(video=START_MEDIA, caption=caption, parse_mode='HTML', reply_markup=InlineKeyboardMarkup(keyboard))
         else:
-            await update.message.reply_photo(photo=chosen_media, caption=caption, parse_mode='HTML', reply_markup=InlineKeyboardMarkup(keyboard))
+            await update.message.reply_photo(photo=START_MEDIA, caption=caption, parse_mode='HTML', reply_markup=InlineKeyboardMarkup(keyboard))
     except Exception as e: logger.error(f"Start Error: {e}")
 
 async def help_menu(update: Update, context: CallbackContext):
@@ -186,30 +182,50 @@ async def help_menu(update: Update, context: CallbackContext):
     if update.callback_query: await update.callback_query.message.reply_text(msg, parse_mode='HTML')
     else: await update.message.reply_text(msg, parse_mode='HTML')
 
-# --- ADMIN COMMANDS ---
+# --- ADMIN COMMANDS (FIXED RUPLOAD) ---
 
 async def rupload(update: Update, context: CallbackContext):
-    if not await is_admin(update.effective_user.id): return
+    # 1. Admin Check
+    if not await is_admin(update.effective_user.id):
+        return
+
+    # 2. FIX: Check if Reply Exists
     msg = update.message.reply_to_message
-    if not msg: return
+    if not msg:
+        await update.message.reply_text("⚠️ **Error:** Photo/Video par REPLY karke command use karein!")
+        return
+
     file_id, c_type = (msg.photo[-1].file_id, "img") if msg.photo else (msg.video.file_id, "amv") if msg.video else (msg.animation.file_id, "amv") if msg.animation else (None, None)
-    if not file_id: return
+    
+    if not file_id:
+        await update.message.reply_text("❌ Ye Photo ya Video nahi hai.")
+        return
+
     try:
         args = context.args
-        if len(args) < 3: await update.message.reply_text("⚠️ `/rupload Name Anime Number`"); return
+        if len(args) < 3: 
+            await update.message.reply_text("⚠️ **Format:** `/rupload Name Anime Number`\nEg: `/rupload Goku DragonBall 5`")
+            return
+            
         name = args[0].replace('-', ' ').title()
         anime = args[1].replace('-', ' ').title()
         try: rarity = RARITY_MAP.get(int(args[2]), "✨ Special")
         except: rarity = "✨ Special"
+        
         char_id = await get_next_id()
         char_data = {'img_url': file_id, 'name': name, 'anime': anime, 'rarity': rarity, 'id': char_id, 'type': c_type}
+        
         await col_chars.insert_one(char_data)
+        # Auto add to owner
         await col_users.update_one({'id': update.effective_user.id}, {'$push': {'characters': char_data}}, upsert=True)
-        await update.message.reply_text(f"✅ **Uploaded!**\n🆔 `{char_id}`")
+        
+        await update.message.reply_text(f"✅ **Uploaded Successfully!**\n🆔 ID: `{char_id}`")
+        
         caption = f"Character Name: {name}\nAnime Name: {anime}\nRarity: {rarity}\nID: {char_id}"
         if c_type == "amv": await context.bot.send_video(chat_id=CHANNEL_ID, video=file_id, caption=caption)
         else: await context.bot.send_photo(chat_id=CHANNEL_ID, photo=file_id, caption=caption)
-    except: pass
+    except Exception as e:
+        await update.message.reply_text(f"❌ Error: {e}")
 
 async def addshop(update: Update, context: CallbackContext):
     if not await is_admin(update.effective_user.id): return
@@ -322,7 +338,7 @@ async def check(update: Update, context: CallbackContext):
     char = await col_chars.find_one({'id': context.args[0]})
     if not char: return
     emoji = get_rarity_emoji(char['rarity'])
-    caption = f"🌟 **Info**\n🆔 {char['id']}\n📛 {char['name']}\n💎 {char['rarity']}"
+    caption = f"🌟 **Info**\n🆔 {char['id']}\n📛 {char['name']}\n📺 {char['anime']}\n💎 {emoji} {char['rarity']}"
     btn = [[InlineKeyboardButton("Who Have It", callback_data=f"who_{char['id']}")]]
     if char.get('type') == 'amv': await update.message.reply_video(video=char['img_url'], caption=caption, parse_mode='Markdown', reply_markup=InlineKeyboardMarkup(btn))
     else: await update.message.reply_photo(photo=char['img_url'], caption=caption, parse_mode='Markdown', reply_markup=InlineKeyboardMarkup(btn))
@@ -333,7 +349,7 @@ async def who_have_it(update: Update, context: CallbackContext):
     msg = f"<b>Owners:</b>\n" + "\n".join([f"{i+1}. {u.get('name','User')}" for i,u in enumerate(users)])
     await update.callback_query.message.reply_text(msg, parse_mode='HTML')
 
-# --- MARKET & PROFILE (PREVIOUSLY CUT OFF) ---
+# --- MARKET & PROFILE ---
 async def market(update: Update, context: CallbackContext):
     items = await col_market.find({}).to_list(length=10)
     if not items: await update.message.reply_text("🏛️ Market empty."); return
@@ -371,16 +387,20 @@ async def profile(update: Update, context: CallbackContext):
     user_id = update.effective_user.id
     if update.message.reply_to_message: user_id = update.message.reply_to_message.from_user.id
     user = await col_users.find_one({'id': user_id})
-    if not user: await update.message.reply_text("User not found."); return
+    if not user: await update.message.reply_text("Not started."); return
     name = user.get('name', 'User')
     bal = user.get('balance', 0)
     count = len(user.get('characters', []))
     married = user.get('married_to', {}).get('name', 'None')
-    pic = PHOTO_URL
+    pic = START_MEDIA
     if user.get('favorites'): pic = user['favorites']['img_url']
     elif user.get('married_to'): pic = user['married_to']['img_url']
     msg = f"👤 <b>PROFILE</b>\n👑 Name: {name}\n💰 Gold: {bal}\n📚 Chars: {count}\n💍 Married: {married}"
-    await update.message.reply_photo(photo=pic, caption=msg, parse_mode='HTML')
+    
+    if pic.endswith((".mp4", ".gif")):
+        await update.message.reply_video(video=pic, caption=msg, parse_mode='HTML')
+    else:
+        await update.message.reply_photo(photo=pic, caption=msg, parse_mode='HTML')
 
 async def marry(update: Update, context: CallbackContext):
     user_id = update.effective_user.id
@@ -453,7 +473,7 @@ async def send_harem_page(update, context, user_id, user_name, page, mode):
     nav = [[InlineKeyboardButton("⬅️", callback_data=f"h_prev_{user_id}_{page}_{mode}"), InlineKeyboardButton("➡️", callback_data=f"h_next_{user_id}_{page}_{mode}")]]
     switch = [[InlineKeyboardButton("Collection", callback_data=f"h_switch_{user_id}_0_img"), InlineKeyboardButton("❤️ AMV", callback_data=f"h_switch_{user_id}_0_amv")]]
     
-    photo = random.choice(START_MEDIA_LIST)
+    photo = START_MEDIA
     if user.get('favorites'): photo = user['favorites']['img_url']
     elif filtered: photo = filtered[-1]['img_url']
     
