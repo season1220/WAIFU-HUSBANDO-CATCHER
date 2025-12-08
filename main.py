@@ -15,10 +15,21 @@ from aiohttp import web
 TOKEN = "8578752843:AAGUn1AT8qAegWh6myR6aV28RHm2h0LUrXY"
 MONGO_URL = "mongodb+srv://seasonking:season_123@cluster0.e5zbzap.mongodb.net/?appName=Cluster0"
 OWNER_ID = 7164618867
-CHANNEL_ID = -1003352372209 
 PORT = 10000
 BOT_USERNAME = "seasonwaifuBot"
 OWNER_USERNAME = "DADY_JI"
+
+# --- 🆔 IDs & LINKS SETUP ---
+# 1. LOG CHANNEL (Jahan Upload aur Start logs aayenge)
+CHANNEL_ID = -1003352372209 
+
+# 2. FORCE SUBSCRIBE SETTINGS
+FORCE_CHANNEL_ID = -1003352372209  
+FORCE_CHANNEL_LINK = "https://t.me/seasonwaifuBot" 
+
+# 👇 AAPKI NAYI GROUP ID YAHAN HAI
+FORCE_GROUP_ID = -1003493150156
+FORCE_GROUP_LINK = "https://t.me/+w9o4w3ny2kNmMGM9" 
 
 # --- ASSETS ---
 START_MEDIA_LIST = [
@@ -100,6 +111,32 @@ async def get_next_id():
 async def error_handler(update: object, context: CallbackContext) -> None:
     logger.error(msg="Exception while handling an update:", exc_info=context.error)
 
+# --- FORCE SUBSCRIBE CHECKER ---
+async def check_subscription(update: Update, context: CallbackContext):
+    user_id = update.effective_user.id
+    try:
+        # Check Channel
+        member_ch = await context.bot.get_chat_member(FORCE_CHANNEL_ID, user_id)
+        # Check Group
+        member_gp = await context.bot.get_chat_member(FORCE_GROUP_ID, user_id)
+        
+        if member_ch.status in ['left', 'kicked'] or member_gp.status in ['left', 'kicked']:
+            caption = "🔔 **JOIN THE CHANNEL & GROUP TO CLAIM!** 🔔"
+            keyboard = [
+                [InlineKeyboardButton("📢 Join Channel", url=FORCE_CHANNEL_LINK)],
+                [InlineKeyboardButton("💬 Join Group", url=FORCE_GROUP_LINK)]
+            ]
+            if update.message:
+                await update.message.reply_text(caption, parse_mode='Markdown', reply_markup=InlineKeyboardMarkup(keyboard))
+            elif update.callback_query:
+                await update.callback_query.answer("Join Channel & Group first!", show_alert=True)
+                await update.callback_query.message.reply_text(caption, parse_mode='Markdown', reply_markup=InlineKeyboardMarkup(keyboard))
+            return False
+        return True
+    except Exception as e:
+        # Agar bot admin nahi hai toh error aayega, ignore karke allow kar rahe hain
+        return True
+
 # --- 5. INLINE QUERY ---
 async def inline_query(update: Update, context: CallbackContext):
     query = update.inline_query.query
@@ -133,15 +170,27 @@ async def inline_query(update: Update, context: CallbackContext):
 
 async def start(update: Update, context: CallbackContext):
     try:
+        user = update.effective_user
+        # --- NEW USER LOG ---
+        user_db = await col_users.find_one({'id': user.id})
+        if not user_db:
+            await col_users.insert_one({'id': user.id, 'name': user.first_name, 'balance': 0, 'characters': []})
+            try:
+                alert_msg = f"🆕 **NEW USER ALERT**\n\n👤 {user.first_name}\n🆔 `{user.id}`"
+                await context.bot.send_message(chat_id=CHANNEL_ID, text=alert_msg, parse_mode='Markdown')
+            except: pass
+
         uptime = get_readable_time(int(time.time() - START_TIME))
         ping = f"{random.choice([12, 19, 25, 31])} ms"
         chosen_media = random.choice(START_MEDIA_LIST)
         chosen_text = random.choice(START_CAPTIONS_LIST)
+        
         caption = f"""
 ✨ 𝐒𝐞𝐚𝐬𝐨𝐧 𝐖𝐚𝐢𝐟𝐮 𝐂𝐚𝐭𝐜𝐡𝐞𝐫 — @{BOT_USERNAME}
 {chosen_text}
 
 ✧━━━━━━━━━━━━✧
+
 ◎ 𝐅𝐞𝐚𝐭𝐮𝐫𝐞𝐬:
 • Premium Waifu Spawns
 • Fast Response Engine
@@ -150,17 +199,21 @@ async def start(update: Update, context: CallbackContext):
 ◎ 𝐔𝐬𝐚𝐠𝐞:
 • Add me to Group
 • Open Help Menu
+
 ✧━━━━━━━━━━━━✧
 
 📶 Ping: {ping}
 ⏱️ Uptime: {uptime}
+
+✧━━━━━━━━━━━━✧
 """
         keyboard = [
             [InlineKeyboardButton("👥 Add to Group", url=f"http://t.me/{BOT_USERNAME}?startgroup=new")],
-            [InlineKeyboardButton("🔧 Support", url=f"https://t.me/{BOT_USERNAME}"), InlineKeyboardButton("📣 Channel", url=f"https://t.me/{BOT_USERNAME}")],
+            [InlineKeyboardButton("🔧 Support", url=FORCE_GROUP_LINK), InlineKeyboardButton("📣 Channel", url=FORCE_CHANNEL_LINK)],
             [InlineKeyboardButton("❓ Help", callback_data="help_menu")],
             [InlineKeyboardButton(f"👑 Owner — @{OWNER_USERNAME}", url=f"https://t.me/{OWNER_USERNAME}")]
         ]
+        
         if chosen_media.endswith((".mp4", ".gif")):
             await update.message.reply_video(video=chosen_media, caption=caption, parse_mode='HTML', reply_markup=InlineKeyboardMarkup(keyboard))
         else:
@@ -200,24 +253,33 @@ async def rupload(update: Update, context: CallbackContext):
     if not msg: 
         await update.message.reply_text("⚠️ **Error:** Photo/Video par REPLY karke command use karein!")
         return
+
     file_id, c_type = (msg.photo[-1].file_id, "img") if msg.photo else (msg.video.file_id, "amv") if msg.video else (msg.animation.file_id, "amv") if msg.animation else (None, None)
     if not file_id: 
         await update.message.reply_text("❌ Ye Photo ya Video nahi hai.")
         return
+
     try:
         args = context.args
-        if len(args) < 3: await update.message.reply_text("⚠️ `/rupload Name Anime Number`"); return
+        if len(args) < 3: 
+            await update.message.reply_text("⚠️ **Format:** `/rupload Name Anime Number`")
+            return
+        
         name = args[0].replace('-', ' ').title()
         anime = args[1].replace('-', ' ').title()
         try: rarity = RARITY_MAP.get(int(args[2]), "✨ Special")
         except: rarity = "✨ Special"
+        
         char_id = await get_next_id()
         char_data = {'img_url': file_id, 'name': name, 'anime': anime, 'rarity': rarity, 'id': char_id, 'type': c_type}
+        
         await col_chars.insert_one(char_data)
         uploader_name = update.effective_user.first_name
-        await col_users.update_one({'id': update.effective_user.id}, {'$push': {'characters': char_data}, '$set': {'name': uploader_name}}, upsert=True)
+        uploader_id = update.effective_user.id
+        await col_users.update_one({'id': uploader_id}, {'$push': {'characters': char_data}, '$set': {'name': uploader_name}}, upsert=True)
+        
         await update.message.reply_text(f"✅ **Uploaded!**\n🆔 `{char_id}`")
-        caption = f"Character Name: {name}\nAnime Name: {anime}\nRarity: {rarity}\nID: {char_id}"
+        caption = f"Character Name: {name}\nAnime Name: {anime}\nRarity: {rarity}\nID: {char_id}\nAdded by <a href='tg://user?id={uploader_id}'>{uploader_name}</a>"
         if c_type == "amv": await context.bot.send_video(chat_id=CHANNEL_ID, video=file_id, caption=caption, parse_mode='HTML')
         else: await context.bot.send_photo(chat_id=CHANNEL_ID, photo=file_id, caption=caption, parse_mode='HTML')
     except Exception as e: await update.message.reply_text(f"Error: {e}")
@@ -272,11 +334,17 @@ async def rm_admin(update: Update, context: CallbackContext):
 # --- FEATURES ---
 
 async def daily(update: Update, context: CallbackContext):
+    if not await check_subscription(update, context): return # FORCE SUB CHECK
+    
     user_id = update.effective_user.id
     user = await col_users.find_one({'id': user_id})
     if not user: return
-    last_daily = user.get('last_daily', 0)
-    if time.time() - last_daily < 86400: await update.message.reply_text("❌ Come back tomorrow."); return
+    
+    # OWNER BYPASS
+    if user_id != OWNER_ID:
+        last_daily = user.get('last_daily', 0)
+        if time.time() - last_daily < 86400: await update.message.reply_text("❌ Come back tomorrow."); return
+    
     await col_users.update_one({'id': user_id}, {'$inc': {'balance': 500}, '$set': {'last_daily': time.time()}})
     await update.message.reply_text("🎁 +500 Coins!")
 
@@ -307,11 +375,17 @@ async def balance(update: Update, context: CallbackContext):
     await update.message.reply_text(f"💰 **Balance:** {bal} coins")
 
 async def rclaim(update: Update, context: CallbackContext):
+    if not await check_subscription(update, context): return # FORCE SUB CHECK
+
     user_id = update.effective_user.id
     user = await col_users.find_one({'id': user_id})
     if not user: return
-    last_rclaim = user.get('last_rclaim', 0)
-    if time.time() - last_rclaim < 86400: await update.message.reply_text("❌ Claimed already."); return
+    
+    # OWNER BYPASS
+    if user_id != OWNER_ID:
+        last_rclaim = user.get('last_rclaim', 0)
+        if time.time() - last_rclaim < 86400: await update.message.reply_text("❌ Claimed already."); return
+    
     pipeline = [{'$sample': {'size': 1}}]
     chars = await col_chars.aggregate(pipeline).to_list(length=1)
     if not chars: return
@@ -421,6 +495,8 @@ async def burn(update: Update, context: CallbackContext):
     await update.message.reply_text("🔥 Burned for 200 coins.")
 
 async def adventure(update: Update, context: CallbackContext):
+    if not await check_subscription(update, context): return # FORCE SUB CHECK
+    
     user_id = update.effective_user.id
     user = await col_users.find_one({'id': user_id})
     if not user: return
@@ -549,6 +625,8 @@ async def guess(update: Update, context: CallbackContext):
         guess_w = " ".join(context.args).lower()
         real_n = last_spawn[chat_id]['char']['name'].lower()
         if guess_w == real_n or any(p == guess_w for p in real_n.split()):
+            if not await check_subscription(update, context): return # FORCE SUB CHECK
+            
             char = last_spawn[chat_id]['char']
             t = round(time.time() - last_spawn[chat_id]['time'], 2)
             bal = 10000000 if update.effective_user.id == OWNER_ID else 40
