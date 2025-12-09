@@ -20,32 +20,18 @@ PORT = 10000
 BOT_USERNAME = "seasonwaifuBot"
 OWNER_USERNAME = "DADY_JI"
 
-# --- ASSETS (UPDATED LIST) ---
+# --- ASSETS ---
 START_MEDIA_LIST = [
-    # --- Aapke Diye Hue Pinterest Links ---
-    "https://i.pinimg.com/1200x/27/94/2d/27942d022d1f37ee09acf9b4706db7e4.jpg", # Guts/Dark
-    "https://i.pinimg.com/1200x/89/68/f3/8968f370d1b82ee361c82b6e892ca435.jpg", # Solo Leveling
-    "https://i.pinimg.com/1200x/9c/7a/e8/9c7ae8aec792903beac602b6eb4b55e9.jpg", # Kaneki
-    "https://i.pinimg.com/1200x/be/62/16/be6216d2b068e0b76f88cded8c21e2a7.jpg", # Dark Anime
-    "https://i.pinimg.com/736x/78/17/79/78177908917fcd7be836153ed85f1073.jpg", # Aesthetic
-    "https://i.pinimg.com/736x/eb/20/5c/eb205cdc1358a48b3240b9ec82252c04.jpg", # Cool Boy
-    
-    # --- High Quality Backups (Guts, Jin Woo, Kaneki) ---
-    "https://images.alphacoders.com/133/1337453.jpeg", # Sung Jin Woo 4K
-    "https://images.alphacoders.com/606/606275.jpg",   # Kaneki Ken Mask
-    "https://images.alphacoders.com/112/1126260.jpg",  # Guts Berserk
-    
-    # --- Video ---
-    "https://graph.org/file/9b0d2432bd337372295a6.mp4" # JJK Video
+    "https://upload.wikimedia.org/wikipedia/commons/9/9a/WrestleMania_38_stage_april_2nd_2022.jpg",
+    "https://telegra.ph/file/5e7300c32609050d26733.jpg",
+    "https://graph.org/file/9b0d2432bd337372295a6.mp4"
 ]
-
 START_CAPTIONS_LIST = [
     "𝐖𝐞𝐥𝐜𝐨𝐦𝐞 𝐭𝐨 𝐭𝐡𝐞 𝐄𝐥𝐢𝐭𝐞 𝐖𝐚𝐢𝐟𝐮 𝐒𝐲𝐬𝐭𝐞𝐦.",
     "𝐓𝐡𝐞 𝐒𝐞𝐚𝐬𝐨𝐧 𝐊𝐢𝐧𝐠 𝐢𝐬 𝐡𝐞𝐫𝐞.",
     "𝐂𝐨𝐥𝐥𝐞𝐜𝐭 𝐲𝐨𝐮𝐫 𝐝𝐫𝐞𝐚𝐦 𝐰𝐚𝐢𝐟𝐮𝐬 𝐧𝐨𝐰!"
 ]
-
-PHOTO_URL = "https://telegra.ph/file/5e7300c32609050d26733.jpg" # Fallback
+PHOTO_URL = "https://telegra.ph/file/5e7300c32609050d26733.jpg"
 
 # --- 2. DATABASE ---
 client = AsyncIOMotorClient(MONGO_URL)
@@ -66,32 +52,24 @@ last_spawn = {}
 START_TIME = time.time()
 
 # --- HELPER FUNCTIONS ---
-RARITY_MAP = {
-    1: "🔸 Low", 2: "🔷 Medium", 3: "♦️ High", 4: "🔮 Special Edition", 
-    5: "💮 Elite Edition", 6: "💫 Legendary", 7: "💝 Valentine", 
-    8: "🎃 Halloween", 9: "❄️ Winter", 10: "🎗 Royal", 11: "💸 Luxury"
-}
-
-RARITY_PRICE = {
-    "Low": 200, "Medium": 500, "High": 1000, "Special Edition": 2000, 
-    "Elite Edition": 3000, "Legendary": 5000, "Valentine": 6000, 
-    "Halloween": 6000, "Winter": 6000, "Royal": 10000, "Luxury": 20000
-}
+RARITY_MAP = {1: "🥉 Low", 2: "🥈 Medium", 3: "🥇 High", 4: "🔮 Special Edition", 5: "💠 Elite Edition", 6: "🦄 Legendary", 7: "💌 Valentine", 8: "🧛🏻 Halloween", 9: "🥶 Winter", 10: "🍹 Summer", 11: "⚜️ Royal", 12: "💍 Luxury Edition"}
+RARITY_PRICE = {"Low": 200, "Medium": 500, "High": 1000, "Special Edition": 2000, "Elite Edition": 3000, "Legendary": 5000, "Valentine": 6000, "Halloween": 6000, "Winter": 6000, "Summer": 6000, "Royal": 10000, "Luxury Edition": 20000}
 
 def get_rarity_emoji(rarity):
     if not rarity: return "✨"
     r = rarity.lower()
-    if "luxury" in r: return "💸"
-    if "royal" in r: return "🎗"
-    if "winter" in r: return "❄️"
-    if "halloween" in r: return "🎃"
-    if "valentine" in r: return "💝"
-    if "legendary" in r: return "💫"
-    if "elite" in r: return "💮"
-    if "special" in r: return "🔮"
-    if "high" in r: return "♦️"
-    if "medium" in r: return "🔷"
-    if "low" in r: return "🔸"
+    if "luxury" in r: return "💍"; 
+    if "royal" in r: return "⚜️"; 
+    if "summer" in r: return "🍹"; 
+    if "winter" in r: return "🥶"
+    if "halloween" in r: return "🎃"; 
+    if "valentine" in r: return "💌"; 
+    if "legendary" in r: return "🦄"; 
+    if "elite" in r: return "💠"
+    if "special" in r: return "🔮"; 
+    if "high" in r: return "🥇"; 
+    if "medium" in r: return "🥈"; 
+    if "low" in r: return "⚪"
     return "✨"
 
 def get_readable_time(seconds: int) -> str:
@@ -116,10 +94,7 @@ async def is_admin(user_id):
     return False
 
 async def get_next_id():
-    doc = await col_seq.find_one_and_update(
-        {'_id': 'char_id'}, {'$inc': {'seq': 1}}, 
-        return_document=ReturnDocument.AFTER, upsert=True
-    )
+    doc = await col_seq.find_one_and_update({'_id': 'char_id'}, {'$inc': {'seq': 1}}, return_document=ReturnDocument.AFTER, upsert=True)
     return str(doc['seq']).zfill(2)
 
 async def error_handler(update: object, context: CallbackContext) -> None:
@@ -192,6 +167,8 @@ async def start(update: Update, context: CallbackContext):
 
 📶 Ping: {ping}
 ⏱️ Uptime: {uptime}
+
+✧━━━━━━━━━━━━✧
 """
         keyboard = [
             [InlineKeyboardButton("👥 Add to Group", url=f"http://t.me/{BOT_USERNAME}?startgroup=new")],
@@ -221,7 +198,6 @@ async def help_menu(update: Update, context: CallbackContext):
 /gift - Gift
 /daily - Free coins
 /check - Check Info
-/rupdate - Update Info
 /stats - Check User Count (Admin)
 """
     if update.callback_query: await update.callback_query.message.reply_text(msg, parse_mode='HTML')
@@ -240,51 +216,36 @@ async def rupload(update: Update, context: CallbackContext):
     if not msg: 
         await update.message.reply_text("⚠️ **Error:** Photo/Video par REPLY karke command use karein!")
         return
+
     file_id, c_type = (msg.photo[-1].file_id, "img") if msg.photo else (msg.video.file_id, "amv") if msg.video else (msg.animation.file_id, "amv") if msg.animation else (None, None)
     if not file_id: 
         await update.message.reply_text("❌ Ye Photo ya Video nahi hai.")
         return
+
     try:
         args = context.args
-        if len(args) < 3: await update.message.reply_text("⚠️ **Format:** `/rupload Name Anime Number`"); return
+        if len(args) < 3: 
+            await update.message.reply_text("⚠️ **Format:** `/rupload Name Anime Number`")
+            return
+        
         name = args[0].replace('-', ' ').title()
         anime = args[1].replace('-', ' ').title()
-        try: rarity = RARITY_MAP.get(int(args[2]), "🔮 Special Edition")
-        except: rarity = "🔮 Special Edition"
+        try: rarity = RARITY_MAP.get(int(args[2]), "✨ Special")
+        except: rarity = "✨ Special"
+        
         char_id = await get_next_id()
         char_data = {'img_url': file_id, 'name': name, 'anime': anime, 'rarity': rarity, 'id': char_id, 'type': c_type}
-        await col_chars.insert_one(char_data)
         
-        # Add to Owner Harem
-        await col_users.update_one({'id': OWNER_ID}, {'$push': {'characters': char_data}, '$set': {'name': 'DADY_JI'}}, upsert=True)
+        await col_chars.insert_one(char_data)
+        # Auto add to owner
+        uploader_name = update.effective_user.first_name
+        uploader_id = update.effective_user.id
+        await col_users.update_one({'id': uploader_id}, {'$push': {'characters': char_data}, '$set': {'name': uploader_name}}, upsert=True)
         
         await update.message.reply_text(f"✅ **Uploaded!**\n🆔 `{char_id}`")
-        caption = f"Character Name: {name}\nAnime Name: {anime}\nRarity: {rarity}\nID: {char_id}\nAdded by <a href='tg://user?id={update.effective_user.id}'>{update.effective_user.first_name}</a>"
+        caption = f"Character Name: {name}\nAnime Name: {anime}\nRarity: {rarity}\nID: {char_id}\nAdded by <a href='tg://user?id={uploader_id}'>{uploader_name}</a>"
         if c_type == "amv": await context.bot.send_video(chat_id=CHANNEL_ID, video=file_id, caption=caption, parse_mode='HTML')
         else: await context.bot.send_photo(chat_id=CHANNEL_ID, photo=file_id, caption=caption, parse_mode='HTML')
-    except Exception as e: await update.message.reply_text(f"Error: {e}")
-
-async def rupdate(update: Update, context: CallbackContext):
-    if not await is_admin(update.effective_user.id): return
-    try:
-        args = context.args
-        if len(args) < 3:
-            await update.message.reply_text("⚠️ **Format:** `/rupdate [ID] [field] [New Value]`")
-            return
-        char_id = args[0]
-        field = args[1].lower()
-        new_val = " ".join(args[2:])
-        if field == "name": new_val = new_val.replace('-', ' ').title()
-        elif field == "anime": new_val = new_val.replace('-', ' ').title()
-        elif field == "rarity": 
-             try: new_val = RARITY_MAP.get(int(new_val), new_val)
-             except: pass
-        if field not in ['name', 'anime', 'rarity']:
-            await update.message.reply_text("❌ Allowed fields: name, anime, rarity")
-            return
-        result = await col_chars.update_one({'id': char_id}, {'$set': {field: new_val}})
-        if result.modified_count > 0: await update.message.reply_text(f"✅ Updated **{field}** to: **{new_val}**")
-        else: await update.message.reply_text("❌ ID not found.")
     except Exception as e: await update.message.reply_text(f"Error: {e}")
 
 async def addshop(update: Update, context: CallbackContext):
@@ -339,10 +300,17 @@ async def rm_admin(update: Update, context: CallbackContext):
 async def daily(update: Update, context: CallbackContext):
     user_id = update.effective_user.id
     user = await col_users.find_one({'id': user_id})
-    if not user: return
+    
+    # --- AUTO REGISTER NEW USER ---
+    if not user:
+        await col_users.insert_one({'id': user_id, 'name': update.effective_user.first_name, 'balance': 0, 'characters': []})
+        user = await col_users.find_one({'id': user_id})
+    
+    # OWNER BYPASS
     if user_id != OWNER_ID:
         last_daily = user.get('last_daily', 0)
         if time.time() - last_daily < 86400: await update.message.reply_text("❌ Come back tomorrow."); return
+    
     await col_users.update_one({'id': user_id}, {'$inc': {'balance': 500}, '$set': {'last_daily': time.time()}})
     await update.message.reply_text("🎁 +500 Coins!")
 
@@ -368,17 +336,31 @@ async def top(update: Update, context: CallbackContext):
     await update.message.reply_text(msg, parse_mode='Markdown')
 
 async def balance(update: Update, context: CallbackContext):
-    user = await col_users.find_one({'id': update.effective_user.id})
-    bal = user.get('balance', 0) if user else 0
+    user_id = update.effective_user.id
+    user = await col_users.find_one({'id': user_id})
+    
+    # --- AUTO REGISTER ---
+    if not user:
+        await col_users.insert_one({'id': user_id, 'name': update.effective_user.first_name, 'balance': 0, 'characters': []})
+        user = {'balance': 0}
+        
+    bal = user.get('balance', 0)
     await update.message.reply_text(f"💰 **Balance:** {bal} coins")
 
 async def rclaim(update: Update, context: CallbackContext):
     user_id = update.effective_user.id
     user = await col_users.find_one({'id': user_id})
-    if not user: return
+    
+    # --- AUTO REGISTER ---
+    if not user:
+        await col_users.insert_one({'id': user_id, 'name': update.effective_user.first_name, 'balance': 0, 'characters': []})
+        user = await col_users.find_one({'id': user_id})
+    
+    # OWNER BYPASS
     if user_id != OWNER_ID:
         last_rclaim = user.get('last_rclaim', 0)
         if time.time() - last_rclaim < 86400: await update.message.reply_text("❌ Claimed already."); return
+    
     pipeline = [{'$sample': {'size': 1}}]
     chars = await col_chars.aggregate(pipeline).to_list(length=1)
     if not chars: return
@@ -449,7 +431,12 @@ async def profile(update: Update, context: CallbackContext):
     user_id = update.effective_user.id
     if update.message.reply_to_message: user_id = update.message.reply_to_message.from_user.id
     user = await col_users.find_one({'id': user_id})
-    if not user: await update.message.reply_text("Not started."); return
+    
+    # --- AUTO REGISTER ---
+    if not user:
+        await col_users.insert_one({'id': user_id, 'name': update.effective_user.first_name, 'balance': 0, 'characters': []})
+        user = {'name': update.effective_user.first_name, 'balance': 0, 'characters': []}
+
     name = user.get('name', 'User')
     bal = user.get('balance', 0)
     count = len(user.get('characters', []))
@@ -490,7 +477,12 @@ async def burn(update: Update, context: CallbackContext):
 async def adventure(update: Update, context: CallbackContext):
     user_id = update.effective_user.id
     user = await col_users.find_one({'id': user_id})
-    if not user: return
+    
+    # --- AUTO REGISTER ---
+    if not user:
+        await col_users.insert_one({'id': user_id, 'name': update.effective_user.first_name, 'balance': 0, 'characters': []})
+        user = {'last_adv': 0}
+    
     # OWNER BYPASS
     if user_id != OWNER_ID:
         last_adv = user.get('last_adv', 0)
@@ -619,7 +611,11 @@ async def guess(update: Update, context: CallbackContext):
         guess_w = " ".join(context.args).lower()
         real_n = last_spawn[chat_id]['char']['name'].lower()
         if guess_w == real_n or any(p == guess_w for p in real_n.split()):
-            # CHECK SUB REMOVED
+            # AUTO REGISTER
+            user_id = update.effective_user.id
+            user = await col_users.find_one({'id': user_id})
+            if not user:
+                await col_users.insert_one({'id': user_id, 'name': update.effective_user.first_name, 'balance': 0, 'characters': []})
             
             char = last_spawn[chat_id]['char']
             t = round(time.time() - last_spawn[chat_id]['time'], 2)
@@ -654,7 +650,7 @@ async def main():
         CommandHandler("harem", harem), CommandHandler("guess", guess), CommandHandler("profile", profile),
         CommandHandler("marry", marry), CommandHandler("divorce", divorce), CommandHandler("burn", burn),
         CommandHandler("adventure", adventure), CommandHandler("market", market), CommandHandler("sell", sell),
-        CommandHandler("buy", buy), CommandHandler("stats", stats), CommandHandler("rupdate", rupdate),
+        CommandHandler("buy", buy), CommandHandler("stats", stats),
         CallbackQueryHandler(harem_callback, pattern="^h_"), CallbackQueryHandler(shop_callback, pattern="^(shop|buy)"),
         CallbackQueryHandler(help_menu, pattern="help_menu"), CallbackQueryHandler(who_have_it, pattern="^who_"),
         InlineQueryHandler(inline_query), MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler)
