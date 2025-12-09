@@ -13,7 +13,7 @@ from pymongo import ReturnDocument
 from aiohttp import web
 
 # --- 1. CONFIGURATION ---
-TOKEN = "8578752843:AAGUn1AT8qAegWh6myR6aV28RHm2h0LUrXY"
+TOKEN = "8578752843:AAGaYe3XST2G-bUjduqefB8MVKMK6_zKguM"
 MONGO_URL = "mongodb+srv://seasonking:season_123@cluster0.e5zbzap.mongodb.net/?appName=Cluster0"
 OWNER_ID = 7164618867
 CHANNEL_ID = -1003352372209 
