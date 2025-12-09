@@ -4,6 +4,7 @@ import random
 import time
 import math
 import os
+from uuid import uuid4
 from collections import defaultdict
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, InlineQueryResultPhoto
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackContext, CallbackQueryHandler, InlineQueryHandler
@@ -62,11 +63,10 @@ RARITY_MAP = {
 }
 
 RARITY_PRICE = {
-    "Low": 200, "Medium": 500, "High": 1000, 
-    "Special Edition": 2000, "Elite Edition": 3000, 
-    "Legendary": 5000, "Valentine": 6000, "Halloween": 6000, 
-    "Winter": 6000, "Summer": 6000, "Royal": 10000, "Luxury": 20000,
-    "AMV": 50000
+    "Low": 200, "Medium": 500, "High": 1000, "Special Edition": 2000, 
+    "Elite Edition": 3000, "Legendary": 5000, "Valentine": 6000, 
+    "Halloween": 6000, "Winter": 6000, "Summer": 6000, 
+    "Royal": 10000, "Luxury": 20000, "AMV": 50000
 }
 
 def get_rarity_emoji(rarity):
@@ -137,7 +137,41 @@ async def check_auctions(app):
         except Exception as e: logger.error(f"Auction Error: {e}")
         await asyncio.sleep(60)
 
-# --- CORE COMMANDS ---
+# --- 5. INLINE QUERY (MISSING FUNCTION ADDED) ---
+async def inline_query(update: Update, context: CallbackContext):
+    query = update.inline_query.query
+    user_id = update.effective_user.id
+    results = []
+    
+    # Collection Search
+    if query.lower().startswith("collection") or query.lower().startswith("harem"):
+        target_id = user_id
+        if "." in query:
+            try: target_id = int(query.split(".")[1])
+            except: pass
+        user = await col_users.find_one({'id': target_id})
+        if user and 'characters' in user:
+            my_chars = user['characters'][::-1][:50]
+            for char in my_chars:
+                emoji = get_rarity_emoji(char['rarity'])
+                caption = f"<b>Name:</b> {char['name']}\n<b>Anime:</b> {char['anime']}\n<b>Rarity:</b> {emoji} {char['rarity']}\n<b>ID:</b> {char['id']}"
+                results.append(InlineQueryResultPhoto(id=str(uuid4()), photo_url=char['img_url'], thumbnail_url=char['img_url'], caption=caption, parse_mode='HTML'))
+    
+    # Global Search
+    else:
+        if query:
+            regex = {"$regex": query, "$options": "i"}
+            cursor = col_chars.find({"$or": [{"name": regex}, {"anime": regex}]}).limit(50)
+        else:
+            cursor = col_chars.find({}).limit(50)
+        async for char in cursor:
+            emoji = get_rarity_emoji(char['rarity'])
+            caption = f"<b>Name:</b> {char['name']}\n<b>Anime:</b> {char['anime']}\n<b>Rarity:</b> {emoji} {char['rarity']}\n<b>ID:</b> {char['id']}"
+            results.append(InlineQueryResultPhoto(id=str(uuid4()), photo_url=char['img_url'], thumbnail_url=char['img_url'], caption=caption, parse_mode='HTML'))
+            
+    await update.inline_query.answer(results, cache_time=5, is_personal=True)
+
+# --- 6. CORE COMMANDS ---
 
 async def start(update: Update, context: CallbackContext):
     try:
@@ -224,20 +258,7 @@ async def rupload(update: Update, context: CallbackContext):
         await update.message.reply_text("⚠️ **Error:** Reply to Photo/Video!")
         return
 
-    # Check File Type (IMG vs AMV)
-    file_id = None
-    c_type = "img"
-    
-    if msg.photo: 
-        file_id = msg.photo[-1].file_id
-        c_type = "img"
-    elif msg.video: 
-        file_id = msg.video.file_id
-        c_type = "amv"
-    elif msg.animation: 
-        file_id = msg.animation.file_id
-        c_type = "amv"
-    
+    file_id, c_type = (msg.photo[-1].file_id, "img") if msg.photo else (msg.video.file_id, "amv") if msg.video else (msg.animation.file_id, "amv") if msg.animation else (None, None)
     if not file_id: 
         await update.message.reply_text("❌ Media not found.")
         return
@@ -329,14 +350,16 @@ async def bcast(update: Update, context: CallbackContext):
 
 async def add_admin(update: Update, context: CallbackContext):
     if update.effective_user.id != OWNER_ID: return
-    new = update.message.reply_to_message.from_user.id
-    await col_settings.update_one({'_id': 'admins'}, {'$addToSet': {'list': new}}, upsert=True)
+    if not update.message.reply_to_message: return
+    new_admin = update.message.reply_to_message.from_user.id
+    await col_settings.update_one({'_id': 'admins'}, {'$addToSet': {'list': new_admin}}, upsert=True)
     await update.message.reply_text("✅ Admin Added.")
 
 async def rm_admin(update: Update, context: CallbackContext):
     if update.effective_user.id != OWNER_ID: return
-    rem = update.message.reply_to_message.from_user.id
-    await col_settings.update_one({'_id': 'admins'}, {'$pull': {'list': rem}})
+    if not update.message.reply_to_message: return
+    rem_admin = update.message.reply_to_message.from_user.id
+    await col_settings.update_one({'_id': 'admins'}, {'$pull': {'list': rem_admin}})
     await update.message.reply_text("✅ Admin Removed.")
 
 # --- FEATURES ---
@@ -376,13 +399,17 @@ async def top(update: Update, context: CallbackContext):
 
 async def balance(update: Update, context: CallbackContext):
     user = await col_users.find_one({'id': update.effective_user.id})
-    bal = user.get('balance', 0) if user else 0
+    if not user:
+        await col_users.insert_one({'id': update.effective_user.id, 'name': update.effective_user.first_name, 'balance': 0, 'characters': []})
+        user = {'balance': 0}
+    bal = user.get('balance', 0)
     await update.message.reply_text(f"💰 **Balance:** {bal} coins")
 
 async def rclaim(update: Update, context: CallbackContext):
     user_id = update.effective_user.id
     user = await col_users.find_one({'id': user_id})
-    if not user: return
+    if not user:
+        await col_users.insert_one({'id': user_id, 'name': update.effective_user.first_name, 'balance': 0, 'characters': []})
     if user_id != OWNER_ID:
         last_rclaim = user.get('last_rclaim', 0)
         if time.time() - last_rclaim < 86400: await update.message.reply_text("❌ Claimed already."); return
@@ -708,7 +735,7 @@ async def spawn_character(update: Update, context: CallbackContext):
 async def guess(update: Update, context: CallbackContext):
     try:
         chat_id = update.effective_chat.id
-        if chat_id not in last_spawn: await update.message.reply_text("❌ No character spawned!"); return 
+        if chat_id not in last_spawn: return 
         if not context.args: return
         guess_w = " ".join(context.args).lower()
         real_n = last_spawn[chat_id]['char']['name'].lower()
