@@ -12,7 +12,7 @@ LOGGER = logging.getLogger(__name__)
 
 # --- 2. CONFIG SETTINGS ---
 # ⚠️ DHYAN DEIN: Niche wali line me Naya Token paste karein
-TOKEN = "8578752843:AAGUn1AT8qAegWh6myR6aV28RHm2h0LUrXY" 
+TOKEN = "8578752843:AAFRuZCm_-JyBoYxnk418UC6bf0QhjnzODw" 
 
 mongo_url = "mongodb+srv://seasonking:season_123@cluster0.e5zbzap.mongodb.net/?appName=Cluster0"
 OWNER_ID = 7164618867
