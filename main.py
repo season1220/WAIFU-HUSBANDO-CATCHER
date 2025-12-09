@@ -761,28 +761,40 @@ async def web_server():
         await check_auctions(Application.builder().token(TOKEN).build())
         await asyncio.sleep(60)
 
+# --- MAIN ---
 async def main():
     await web_server()
     app = Application.builder().token(TOKEN).build()
     app.add_error_handler(error_handler)
+
+    # Handlers List
     handlers = [
         CommandHandler("start", start), CommandHandler("rupload", rupload), CommandHandler("addshop", addshop),
-        CommandHandler("delete", delete), CommandHandler("changetime", changetime), CommandHandler("bcast", bcast),
-        CommandHandler("addadmin", add_admin), CommandHandler("rmadmin", rm_admin), CommandHandler("rupdate", rupdate),
-        CommandHandler("stats", stats),
+        CommandHandler("delete", delete), CommandHandler("changetime", changetime), CommandHandler("ctime", changetime),
+        CommandHandler("addadmin", add_admin), CommandHandler("rmadmin", rm_admin), CommandHandler("bcast", bcast),
         CommandHandler("balance", balance), CommandHandler("daily", daily), CommandHandler("gift", gift),
         CommandHandler("trade", trade), CommandHandler("top", top), CommandHandler("shop", shop),
         CommandHandler("rclaim", rclaim), CommandHandler("check", check), CommandHandler("fav", fav),
-        CommandHandler("harem", harem), CommandHandler("profile", profile), CommandHandler("marry", marry),
-        CommandHandler("burn", burn), CommandHandler("divorce", divorce), CommandHandler("auction", auction),
-        CommandHandler("bid", bid), CommandHandler("createclan", createclan), CommandHandler("joinclan", joinclan),
-        CommandHandler("feed", feed), CommandHandler("coinflip", coinflip), CommandHandler("dice", dice),
-        CommandHandler("guess", guess),
+        CommandHandler("harem", harem), CommandHandler("guess", guess), CommandHandler("profile", profile),
+        CommandHandler("marry", marry), CommandHandler("divorce", divorce), CommandHandler("burn", burn),
+        CommandHandler("adventure", adventure), CommandHandler("market", market), CommandHandler("sell", sell),
+        CommandHandler("buy", buy), CommandHandler("stats", stats),
         CallbackQueryHandler(harem_callback, pattern="^h_"), CallbackQueryHandler(shop_callback, pattern="^(shop|buy)"),
         CallbackQueryHandler(help_menu, pattern="help_menu"), CallbackQueryHandler(who_have_it, pattern="^who_"),
         InlineQueryHandler(inline_query), MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler)
     ]
+    
     for h in handlers: app.add_handler(h)
-    await app.initialize(); await app.start(); await app.updater.start_polling(); await asyncio.Event().wait()
+    
+    await app.initialize()
+    await app.start()
+    
+    # 🔥 YE LINE SABSE IMPORTANT HAI (Fixes the issue)
+    await app.bot.delete_webhook(drop_pending_updates=True)
+    
+    await app.updater.start_polling()
+    print("✅ Bot Started Successfully...")
+    await asyncio.Event().wait()
 
-if __name__ == "__main__": asyncio.run(main())
+if __name__ == "__main__":
+    asyncio.run(main())
