@@ -54,29 +54,40 @@ last_spawn = {}
 START_TIME = time.time()
 
 # --- HELPER FUNCTIONS ---
+# ✅ UPDATED RARITY MAP (With AMV)
 RARITY_MAP = {
-    1: "🔸 Low", 2: "🔷 Medium", 3: "♦️ High", 4: "🔮 Special Edition", 
-    5: "💮 Elite Edition", 6: "💫 Legendary", 7: "💝 Valentine", 
-    8: "🎃 Halloween", 9: "❄️ Winter", 10: "🏜 Summer", 
-    11: "🎗 Royal", 12: "💸 Luxury"
+    1: "🔸 Low", 
+    2: "🔷 Medium", 
+    3: "♦️ High", 
+    4: "🔮 Special Edition", 
+    5: "💮 Elite Edition", 
+    6: "👑 Legendary", 
+    7: "💝 Valentine", 
+    8: "🎃 Halloween", 
+    9: "❄️ Winter", 
+    10: "🏜 Summer", 
+    11: "🎗 Royal", 
+    12: "💸 Luxury",
+    13: "⛩ AMV"
 }
 
 RARITY_PRICE = {
     "Low": 200, "Medium": 500, "High": 1000, "Special Edition": 2000, 
     "Elite Edition": 3000, "Legendary": 5000, "Valentine": 6000, 
-    "Halloween": 6000, "Winter": 6000, "Royal": 10000, "Luxury": 20000
+    "Halloween": 6000, "Winter": 6000, "Royal": 10000, "Luxury": 20000, "AMV": 25000
 }
 
 def get_rarity_emoji(rarity):
     if not rarity: return "✨"
     r = rarity.lower()
+    if "amv" in r: return "⛩"
     if "luxury" in r: return "💸"
     if "royal" in r: return "🎗"
     if "summer" in r: return "🏜"
     if "winter" in r: return "❄️"
     if "halloween" in r: return "🎃"
     if "valentine" in r: return "💝"
-    if "legendary" in r: return "💫"
+    if "legendary" in r: return "👑"
     if "elite" in r: return "💮"
     if "special" in r: return "🔮"
     if "high" in r: return "♦️"
@@ -220,17 +231,34 @@ async def rupload(update: Update, context: CallbackContext):
     if not msg: 
         await update.message.reply_text("⚠️ **Error:** Reply to Photo/Video!")
         return
+    
+    # Identify Media Type
     file_id, c_type = (msg.photo[-1].file_id, "img") if msg.photo else (msg.video.file_id, "amv") if msg.video else (msg.animation.file_id, "amv") if msg.animation else (None, None)
+    
     if not file_id: 
         await update.message.reply_text("❌ Media not found.")
         return
+        
     try:
         args = context.args
         if len(args) < 3: await update.message.reply_text("⚠️ **Format:** `/rupload Name Anime Number`"); return
         name = args[0].replace('-', ' ').title()
         anime = args[1].replace('-', ' ').title()
-        try: rarity = RARITY_MAP.get(int(args[2]), "✨ Special")
+        
+        try:
+            rarity_num = int(args[2])
+        except ValueError:
+            await update.message.reply_text("❌ Rarity must be a number (1-13).")
+            return
+
+        # ✅ LOGIC TO CHECK AMV (VIDEO)
+        if c_type == "amv" and rarity_num != 13:
+            await update.message.reply_text("❌ **It's an AMV!**\nIt is only made for **13** rarity (⛩ AMV).")
+            return
+
+        try: rarity = RARITY_MAP.get(rarity_num, "✨ Special")
         except: rarity = "✨ Special"
+        
         char_id = await get_next_id()
         char_data = {'img_url': file_id, 'name': name, 'anime': anime, 'rarity': rarity, 'id': char_id, 'type': c_type}
         await col_chars.insert_one(char_data)
