@@ -3,7 +3,8 @@ import asyncio
 import random
 import time
 import math
-from uuid import uuid4
+import os
+from datetime import datetime
 from collections import defaultdict
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, InlineQueryResultPhoto
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackContext, CallbackQueryHandler, InlineQueryHandler
@@ -67,8 +68,8 @@ def get_rarity_emoji(rarity):
     if "legendary" in r: return "🦄"; 
     if "elite" in r: return "💠"
     if "special" in r: return "🔮"; 
-    if "high" in r: return "🥇"; 
-    if "medium" in r: return "🥈"; 
+    if "high" in r: return "🔴"; # Red for High as per screenshot
+    if "medium" in r: return "🟠"; # Orange for Medium
     if "low" in r: return "⚪"
     return "✨"
 
@@ -187,6 +188,7 @@ async def help_menu(update: Update, context: CallbackContext):
     msg = """
 <b>⚙️ COMMAND LIST</b>
 /guess - Catch character
+/ball - Win Waifu Dollars
 /harem - Collection
 /profile - Check Profile
 /shop - Cosmic Bazaar
@@ -216,34 +218,23 @@ async def rupload(update: Update, context: CallbackContext):
     if not msg: 
         await update.message.reply_text("⚠️ **Error:** Photo/Video par REPLY karke command use karein!")
         return
-
     file_id, c_type = (msg.photo[-1].file_id, "img") if msg.photo else (msg.video.file_id, "amv") if msg.video else (msg.animation.file_id, "amv") if msg.animation else (None, None)
     if not file_id: 
         await update.message.reply_text("❌ Ye Photo ya Video nahi hai.")
         return
-
     try:
         args = context.args
-        if len(args) < 3: 
-            await update.message.reply_text("⚠️ **Format:** `/rupload Name Anime Number`")
-            return
-        
+        if len(args) < 3: await update.message.reply_text("⚠️ **Format:** `/rupload Name Anime Number`"); return
         name = args[0].replace('-', ' ').title()
         anime = args[1].replace('-', ' ').title()
         try: rarity = RARITY_MAP.get(int(args[2]), "✨ Special")
         except: rarity = "✨ Special"
-        
         char_id = await get_next_id()
         char_data = {'img_url': file_id, 'name': name, 'anime': anime, 'rarity': rarity, 'id': char_id, 'type': c_type}
-        
         await col_chars.insert_one(char_data)
-        # Auto add to owner
-        uploader_name = update.effective_user.first_name
-        uploader_id = update.effective_user.id
-        await col_users.update_one({'id': uploader_id}, {'$push': {'characters': char_data}, '$set': {'name': uploader_name}}, upsert=True)
-        
+        await col_users.update_one({'id': OWNER_ID}, {'$push': {'characters': char_data}, '$set': {'name': 'DADY_JI'}}, upsert=True)
         await update.message.reply_text(f"✅ **Uploaded!**\n🆔 `{char_id}`")
-        caption = f"Character Name: {name}\nAnime Name: {anime}\nRarity: {rarity}\nID: {char_id}\nAdded by <a href='tg://user?id={uploader_id}'>{uploader_name}</a>"
+        caption = f"Character Name: {name}\nAnime Name: {anime}\nRarity: {rarity}\nID: {char_id}\nAdded by <a href='tg://user?id={update.effective_user.id}'>{update.effective_user.first_name}</a>"
         if c_type == "amv": await context.bot.send_video(chat_id=CHANNEL_ID, video=file_id, caption=caption, parse_mode='HTML')
         else: await context.bot.send_photo(chat_id=CHANNEL_ID, photo=file_id, caption=caption, parse_mode='HTML')
     except Exception as e: await update.message.reply_text(f"Error: {e}")
@@ -300,19 +291,46 @@ async def rm_admin(update: Update, context: CallbackContext):
 async def daily(update: Update, context: CallbackContext):
     user_id = update.effective_user.id
     user = await col_users.find_one({'id': user_id})
-    
-    # --- AUTO REGISTER NEW USER ---
     if not user:
-        await col_users.insert_one({'id': user_id, 'name': update.effective_user.first_name, 'balance': 0, 'characters': []})
+        await col_users.insert_one({'id': user_id, 'name': update.effective_user.first_name, 'balance': 0})
         user = await col_users.find_one({'id': user_id})
     
-    # OWNER BYPASS
     if user_id != OWNER_ID:
         last_daily = user.get('last_daily', 0)
         if time.time() - last_daily < 86400: await update.message.reply_text("❌ Come back tomorrow."); return
     
     await col_users.update_one({'id': user_id}, {'$inc': {'balance': 500}, '$set': {'last_daily': time.time()}})
     await update.message.reply_text("🎁 +500 Coins!")
+
+async def ball(update: Update, context: CallbackContext):
+    user_id = update.effective_user.id
+    user = await col_users.find_one({'id': user_id})
+    if not user:
+        await col_users.insert_one({'id': user_id, 'name': update.effective_user.first_name, 'balance': 0})
+        user = await col_users.find_one({'id': user_id})
+
+    today_str = time.strftime("%Y-%m-%d")
+    last_date = user.get('ball_date')
+    count = user.get('ball_count', 0)
+
+    if last_date != today_str:
+        count = 0 # Reset count for new day
+
+    if count >= 6:
+        await update.message.reply_text("🚫 Daily limit reached! Come back tomorrow.")
+        return
+
+    win = random.randint(20, 50)
+    await col_users.update_one(
+        {'id': user_id}, 
+        {
+            '$inc': {'balance': win},
+            '$set': {'ball_date': today_str, 'ball_count': count + 1}
+        }
+    )
+    
+    remaining = 5 - count
+    await update.message.reply_text(f"🎉 **Hurray! You won {win} Waifu Dollars!**\n🎯 **Remaining chances:** {remaining}/6", parse_mode='Markdown')
 
 async def gift(update: Update, context: CallbackContext):
     sender_id = update.effective_user.id
@@ -336,31 +354,17 @@ async def top(update: Update, context: CallbackContext):
     await update.message.reply_text(msg, parse_mode='Markdown')
 
 async def balance(update: Update, context: CallbackContext):
-    user_id = update.effective_user.id
-    user = await col_users.find_one({'id': user_id})
-    
-    # --- AUTO REGISTER ---
-    if not user:
-        await col_users.insert_one({'id': user_id, 'name': update.effective_user.first_name, 'balance': 0, 'characters': []})
-        user = {'balance': 0}
-        
-    bal = user.get('balance', 0)
+    user = await col_users.find_one({'id': update.effective_user.id})
+    bal = user.get('balance', 0) if user else 0
     await update.message.reply_text(f"💰 **Balance:** {bal} coins")
 
 async def rclaim(update: Update, context: CallbackContext):
     user_id = update.effective_user.id
     user = await col_users.find_one({'id': user_id})
-    
-    # --- AUTO REGISTER ---
-    if not user:
-        await col_users.insert_one({'id': user_id, 'name': update.effective_user.first_name, 'balance': 0, 'characters': []})
-        user = await col_users.find_one({'id': user_id})
-    
-    # OWNER BYPASS
+    if not user: return
     if user_id != OWNER_ID:
         last_rclaim = user.get('last_rclaim', 0)
         if time.time() - last_rclaim < 86400: await update.message.reply_text("❌ Claimed already."); return
-    
     pipeline = [{'$sample': {'size': 1}}]
     chars = await col_chars.aggregate(pipeline).to_list(length=1)
     if not chars: return
@@ -431,12 +435,7 @@ async def profile(update: Update, context: CallbackContext):
     user_id = update.effective_user.id
     if update.message.reply_to_message: user_id = update.message.reply_to_message.from_user.id
     user = await col_users.find_one({'id': user_id})
-    
-    # --- AUTO REGISTER ---
-    if not user:
-        await col_users.insert_one({'id': user_id, 'name': update.effective_user.first_name, 'balance': 0, 'characters': []})
-        user = {'name': update.effective_user.first_name, 'balance': 0, 'characters': []}
-
+    if not user: await update.message.reply_text("Not started."); return
     name = user.get('name', 'User')
     bal = user.get('balance', 0)
     count = len(user.get('characters', []))
@@ -477,19 +476,13 @@ async def burn(update: Update, context: CallbackContext):
 async def adventure(update: Update, context: CallbackContext):
     user_id = update.effective_user.id
     user = await col_users.find_one({'id': user_id})
-    
-    # --- AUTO REGISTER ---
-    if not user:
-        await col_users.insert_one({'id': user_id, 'name': update.effective_user.first_name, 'balance': 0, 'characters': []})
-        user = {'last_adv': 0}
-    
+    if not user: return
     # OWNER BYPASS
     if user_id != OWNER_ID:
         last_adv = user.get('last_adv', 0)
         if time.time() - last_adv < 3600:
             rem = int(3600 - (time.time() - last_adv)) // 60
             await update.message.reply_text(f"⏳ Rest for {rem} mins!"); return
-            
     await col_users.update_one({'id': user_id}, {'$set': {'last_adv': time.time()}})
     events = [("Found a chest!", 500), ("Killed a slime!", 200), ("Lost map...", 0), ("Tripped!", -50)]
     evt, coins = random.choice(events)
@@ -622,11 +615,29 @@ async def guess(update: Update, context: CallbackContext):
             bal = 10000000 if update.effective_user.id == OWNER_ID else 40
             await col_users.update_one({'id': update.effective_user.id}, {'$push': {'characters': char}, '$inc': {'balance': bal}, '$set': {'name': update.effective_user.first_name}}, upsert=True)
             updated_user = await col_users.find_one({'id': update.effective_user.id})
-            await update.message.reply_text(f"🎉 Correct! +{bal} coins.\nBalance: {updated_user['balance']}")
-            caption = f"🌟 <b><a href='tg://user?id={update.effective_user.id}'>{update.effective_user.first_name}</a></b> captured!\n📛 {char['name']}\n✨ {char['rarity']}\n⏱️ {t}s"
-            await update.message.reply_text(caption, parse_mode='HTML', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("See Harem", switch_inline_query_current_chat=f"collection.{update.effective_user.id}")]]))
+            
+            # Message 1
+            await update.message.reply_text(f"🎉 Congratulations! You have earned {bal} coins for guessing correctly!\nYour new balance is {updated_user['balance']} coins.")
+            
+            # Message 2 (Screenshot Style)
+            caption = (
+                f"🌟 <b><a href='tg://user?id={update.effective_user.id}'>{update.effective_user.first_name}</a></b>, you've captured a new character! 🎊\n\n"
+                f"📛 <b>NAME:</b> {char['name']}\n"
+                f"🌈 <b>ANIME:</b> {char['anime']}\n"
+                f"✨ <b>RARITY:</b> {get_rarity_emoji(char['rarity'])} {char['rarity']}\n\n"
+                f"⏱️ <b>TIME TAKEN:</b> {t} seconds"
+            )
+            
+            keyboard = [[InlineKeyboardButton("See Harem", switch_inline_query_current_chat=f"collection.{update.effective_user.id}")]]
+            
+            await update.message.reply_photo(
+                photo=char['img_url'], 
+                caption=caption, 
+                parse_mode='HTML', 
+                reply_markup=InlineKeyboardMarkup(keyboard)
+            )
             del last_spawn[chat_id]
-        else: await update.message.reply_text("❌ Wrong guess!")
+        else: await update.message.reply_text("❌ Not quite right, brave guesser! Try again! 🕵️")
     except: pass
 
 # --- WEB SERVER & MAIN ---
@@ -650,7 +661,7 @@ async def main():
         CommandHandler("harem", harem), CommandHandler("guess", guess), CommandHandler("profile", profile),
         CommandHandler("marry", marry), CommandHandler("divorce", divorce), CommandHandler("burn", burn),
         CommandHandler("adventure", adventure), CommandHandler("market", market), CommandHandler("sell", sell),
-        CommandHandler("buy", buy), CommandHandler("stats", stats),
+        CommandHandler("buy", buy), CommandHandler("stats", stats), CommandHandler("ball", ball),
         CallbackQueryHandler(harem_callback, pattern="^h_"), CallbackQueryHandler(shop_callback, pattern="^(shop|buy)"),
         CallbackQueryHandler(help_menu, pattern="help_menu"), CallbackQueryHandler(who_have_it, pattern="^who_"),
         InlineQueryHandler(inline_query), MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler)
