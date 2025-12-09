@@ -54,7 +54,6 @@ last_spawn = {}
 START_TIME = time.time()
 
 # --- HELPER FUNCTIONS ---
-# ✅ UPDATED RARITY MAP (With AMV)
 RARITY_MAP = {
     1: "🔸 Low", 
     2: "🔷 Medium", 
@@ -232,7 +231,6 @@ async def rupload(update: Update, context: CallbackContext):
         await update.message.reply_text("⚠️ **Error:** Reply to Photo/Video!")
         return
     
-    # Identify Media Type
     file_id, c_type = (msg.photo[-1].file_id, "img") if msg.photo else (msg.video.file_id, "amv") if msg.video else (msg.animation.file_id, "amv") if msg.animation else (None, None)
     
     if not file_id: 
@@ -251,7 +249,6 @@ async def rupload(update: Update, context: CallbackContext):
             await update.message.reply_text("❌ Rarity must be a number (1-13).")
             return
 
-        # ✅ LOGIC TO CHECK AMV (VIDEO)
         if c_type == "amv" and rarity_num != 13:
             await update.message.reply_text("❌ **It's an AMV!**\nIt is only made for **13** rarity (⛩ AMV).")
             return
@@ -738,6 +735,26 @@ async def guess(update: Update, context: CallbackContext):
             del last_spawn[chat_id]
         else: await update.message.reply_text("❌ Wrong guess!")
     except: pass
+
+async def inline_query(update: Update, context: CallbackContext):
+    query = update.inline_query.query
+    if not query:
+        return
+    
+    results = await col_chars.find({'name': {'$regex': query, '$options': 'i'}}).to_list(length=50)
+    
+    answers = []
+    for char in results:
+        answers.append(
+            InlineQueryResultPhoto(
+                id=char['id'],
+                photo_url=char['img_url'],
+                thumbnail_url=char['img_url'],
+                caption=f"✨ <b>{char['name']}</b>\n🎬 {char['anime']}\n💎 {char['rarity']}",
+                parse_mode='HTML'
+            )
+        )
+    await update.inline_query.answer(answers, cache_time=1)
 
 # --- SERVER ---
 async def web_server():
