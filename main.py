@@ -4,16 +4,15 @@ import random
 import time
 import math
 import os
-from uuid import uuid4
 from collections import defaultdict
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, InlineQueryResultCachedPhoto, InlineQueryResultCachedVideo
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, InlineQueryResultPhoto, InlineQueryResultVideo
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackContext, CallbackQueryHandler, InlineQueryHandler
 from motor.motor_asyncio import AsyncIOMotorClient
 from pymongo import ReturnDocument
 from aiohttp import web
 
 # --- 1. CONFIGURATION ---
-TOKEN = "8578752843:AAGaYe3XST2G-bUjduqefB8MVKMK6_zKguM"
+TOKEN = "8578752843:AAGUn1AT8qAegWh6myR6aV28RHm2h0LUrXY"
 MONGO_URL = "mongodb+srv://seasonking:season_123@cluster0.e5zbzap.mongodb.net/?appName=Cluster0"
 OWNER_ID = 7164618867
 CHANNEL_ID = -1003352372209 
@@ -54,26 +53,47 @@ message_counts = {}
 last_spawn = {} 
 START_TIME = time.time()
 
-# --- HELPER FUNCTIONS ---
-RARITY_MAP = {1: "🥉 Low", 2: "🥈 Medium", 3: "🥇 High", 4: "🔮 Special Edition", 5: "💠 Elite Edition", 6: "🦄 Legendary", 7: "💌 Valentine", 8: "🧛🏻 Halloween", 9: "🥶 Winter", 10: "🍹 Summer", 11: "⚜️ Royal", 12: "💍 Luxury Edition", 13: "⛩ AMV"}
-RARITY_PRICE = {"Low": 200, "Medium": 500, "High": 1000, "Special Edition": 2000, "Elite Edition": 3000, "Legendary": 5000, "Valentine": 6000, "Halloween": 6000, "Winter": 6000, "Summer": 6000, "Royal": 10000, "Luxury": 20000, "AMV": 50000}
+# --- HELPER FUNCTIONS (UPDATED RARITY) ---
+RARITY_MAP = {
+    1: "🔸 Low", 
+    2: "🔷 Medium", 
+    3: "♦️ High", 
+    4: "🔮 Special Edition", 
+    5: "💮 Elite Edition", 
+    6: "👑 Legendary", 
+    7: "💝 Valentine", 
+    8: "🎃 Halloween", 
+    9: "❄️ Winter", 
+    10: "🏜 Summer", 
+    11: "🎗 Royal", 
+    12: "💸 Luxury",
+    13: "⛩ AMV" # Internal for Videos
+}
+
+RARITY_PRICE = {
+    "Low": 200, "Medium": 500, "High": 1000, 
+    "Special Edition": 2000, "Elite Edition": 3000, 
+    "Legendary": 5000, "Valentine": 6000, "Halloween": 6000, 
+    "Winter": 6000, "Summer": 6000, "Royal": 10000, "Luxury": 20000,
+    "AMV": 50000
+}
 
 def get_rarity_emoji(rarity):
     if not rarity: return "✨"
     r = rarity.lower()
     if "amv" in r: return "⛩"
     if "luxury" in r: return "💸"
-    if "royal" in r: return "⚜️"
-    if "summer" in r: return "🍹"
-    if "winter" in r: return "🥶"
+    if "royal" in r: return "🎗"
+    if "summer" in r: return "🏜"
+    if "winter" in r: return "❄️"
     if "halloween" in r: return "🎃"
-    if "valentine" in r: return "💌"
-    if "legendary" in r: return "🦄"
-    if "elite" in r: return "💠"
+    if "valentine" in r: return "💝"
+    if "legendary" in r: return "👑"
+    if "elite" in r: return "💮"
     if "special" in r: return "🔮"
-    if "high" in r: return "🥇"
-    if "medium" in r: return "🥈"
-    if "low" in r: return "🥉"
+    if "high" in r: return "♦️"
+    if "medium" in r: return "🔷"
+    if "low" in r: return "🔸"
     return "✨"
 
 def get_readable_time(seconds: int) -> str:
@@ -126,7 +146,7 @@ async def check_auctions(app):
         except Exception as e: logger.error(f"Auction Error: {e}")
         await asyncio.sleep(60)
 
-# --- 5. INLINE QUERY (FIXED: USES CACHED MEDIA) ---
+# --- 5. INLINE QUERY ---
 async def inline_query(update: Update, context: CallbackContext):
     query = update.inline_query.query
     user_id = update.effective_user.id
@@ -140,30 +160,16 @@ async def inline_query(update: Update, context: CallbackContext):
         
         user = await col_users.find_one({'id': target_id})
         if user and 'characters' in user:
-            # Show last 50
             my_chars = user['characters'][::-1][:50]
             for char in my_chars:
                 emoji = get_rarity_emoji(char['rarity'])
                 caption = f"<b>Name:</b> {char['name']}\n<b>Anime:</b> {char['anime']}\n<b>Rarity:</b> {emoji} {char['rarity']}\n<b>ID:</b> {char['id']}"
                 
-                # --- FIXED: Use CachedVideo for AMVs ---
                 if char.get('type') == 'amv':
-                    results.append(InlineQueryResultCachedVideo(
-                        id=str(uuid4()), 
-                        video_file_id=char['img_url'], # Using FileID
-                        title=f"{char['name']} (AMV)", 
-                        caption=caption, 
-                        parse_mode='HTML'
-                    ))
+                    results.append(InlineQueryResultVideo(id=str(uuid4()), video_url=char['img_url'], mime_type="video/mp4", thumbnail_url=PHOTO_URL, title=char['name'], caption=caption, parse_mode='HTML'))
                 else:
-                    results.append(InlineQueryResultCachedPhoto(
-                        id=str(uuid4()), 
-                        photo_file_id=char['img_url'], # Using FileID
-                        caption=caption, 
-                        parse_mode='HTML'
-                    ))
+                    results.append(InlineQueryResultPhoto(id=str(uuid4()), photo_url=char['img_url'], thumbnail_url=char['img_url'], caption=caption, parse_mode='HTML'))
     else:
-        # Global Search
         if query:
             regex = {"$regex": query, "$options": "i"}
             cursor = col_chars.find({"$or": [{"name": regex}, {"anime": regex}]}).limit(50)
@@ -175,20 +181,9 @@ async def inline_query(update: Update, context: CallbackContext):
             caption = f"<b>Name:</b> {char['name']}\n<b>Anime:</b> {char['anime']}\n<b>Rarity:</b> {emoji} {char['rarity']}\n<b>ID:</b> {char['id']}"
             
             if char.get('type') == 'amv':
-                results.append(InlineQueryResultCachedVideo(
-                    id=str(uuid4()), 
-                    video_file_id=char['img_url'], 
-                    title=f"{char['name']} (AMV)", 
-                    caption=caption, 
-                    parse_mode='HTML'
-                ))
+                results.append(InlineQueryResultVideo(id=str(uuid4()), video_url=char['img_url'], mime_type="video/mp4", thumbnail_url=PHOTO_URL, title=char['name'], caption=caption, parse_mode='HTML'))
             else:
-                results.append(InlineQueryResultCachedPhoto(
-                    id=str(uuid4()), 
-                    photo_file_id=char['img_url'], 
-                    caption=caption, 
-                    parse_mode='HTML'
-                ))
+                results.append(InlineQueryResultPhoto(id=str(uuid4()), photo_url=char['img_url'], thumbnail_url=char['img_url'], title=char['name'], caption=caption, parse_mode='HTML'))
 
     await update.inline_query.answer(results, cache_time=5, is_personal=True)
 
@@ -236,7 +231,6 @@ async def start(update: Update, context: CallbackContext):
             [InlineKeyboardButton("❓ Help", callback_data="help_menu")],
             [InlineKeyboardButton(f"👑 Owner — @{OWNER_USERNAME}", url=f"https://t.me/{OWNER_USERNAME}")]
         ]
-        
         if chosen_media.endswith((".mp4", ".gif")):
             await update.message.reply_video(video=chosen_media, caption=caption, parse_mode='HTML', reply_markup=InlineKeyboardMarkup(keyboard))
         else:
@@ -437,7 +431,7 @@ async def gift(update: Update, context: CallbackContext):
     sender = await col_users.find_one({'id': sender_id})
     char = next((c for c in sender.get('characters', []) if c['id'] == char_id), None)
     if not char: 
-        await update.message.reply_text("❌ Character not found.")
+        await update.message.reply_text("❌ Not found.")
         return
     
     await col_users.update_one({'id': sender_id}, {'$pull': {'characters': {'id': char_id}}})
@@ -712,10 +706,10 @@ async def send_harem_page(update, context, user_id, user_name, page, mode):
     total_pages = math.ceil(len(sorted_animes) / CHUNK)
     if page < 0: page = 0
     if page >= total_pages: page = total_pages - 1
-    current = sorted_animes[page * CHUNK : (page + 1) * CHUNK]
+    current_animes = sorted_animes[page * CHUNK : (page + 1) * CHUNK]
     
     msg = f"<b>🍃 {user_name}'s Harem</b>\nPage {page+1}/{total_pages}\n\n"
-    for anime in current:
+    for anime in current_animes:
         chars = anime_map[anime]
         msg += f"<b>{anime} ({len(chars)})</b>\n"
         for char in chars:
@@ -812,7 +806,11 @@ async def spawn_character(update: Update, context: CallbackContext):
         # ⛩ Symbol for AMV
         symbol = "⛩" if character.get('type') == 'amv' else "✨"
         
-        caption = f"{symbol} A {emoji} <b>{character['rarity']}</b> Character Appears! {symbol}\n🔎 Use /guess to claim!\n💫 Hurry!"
+        caption = (
+            f"{symbol} A {emoji} <b>{character['rarity']}</b> Character Appears! {symbol}\n"
+            f"🔎 Use /guess to claim!\n"
+            f"💫 Hurry!"
+        )
         
         if character.get('type') == 'amv':
              await context.bot.send_video(chat_id=update.effective_chat.id, video=character['img_url'], caption=caption, parse_mode='HTML')
@@ -840,9 +838,26 @@ async def guess(update: Update, context: CallbackContext):
             await col_users.update_one({'id': update.effective_user.id}, {'$push': {'characters': char}, '$inc': {'balance': bal}, '$set': {'name': update.effective_user.first_name}}, upsert=True)
             updated_user = await col_users.find_one({'id': update.effective_user.id})
             
-            await update.message.reply_text(f"🎉 Correct! +{bal} coins.\nBalance: {updated_user['balance']}")
-            caption = f"🌟 <b><a href='tg://user?id={update.effective_user.id}'>{update.effective_user.first_name}</a></b> captured!\n📛 {char['name']}\n✨ {char['rarity']}\n⏱️ {t}s"
-            await update.message.reply_text(caption, parse_mode='HTML', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("See Harem", switch_inline_query_current_chat=f"collection.{update.effective_user.id}")]]))
+            # Message 1
+            await update.message.reply_text(f"🎉 Congratulations! You have earned {bal} coins for guessing correctly!\nYour new balance is {updated_user['balance']} coins.")
+            
+            # Message 2 (Screenshot Style)
+            caption = (
+                f"🌟 <b><a href='tg://user?id={update.effective_user.id}'>{update.effective_user.first_name}</a></b>, you've captured a new character! 🎊\n\n"
+                f"📛 <b>NAME:</b> {char['name']}\n"
+                f"🌈 <b>ANIME:</b> {char['anime']}\n"
+                f"✨ <b>RARITY:</b> {get_rarity_emoji(char['rarity'])} {char['rarity']}\n\n"
+                f"⏱️ <b>TIME TAKEN:</b> {t} seconds"
+            )
+            
+            keyboard = [[InlineKeyboardButton("See Harem", switch_inline_query_current_chat=f"collection.{update.effective_user.id}")]]
+            
+            await update.message.reply_photo(
+                photo=char['img_url'], 
+                caption=caption, 
+                parse_mode='HTML', 
+                reply_markup=InlineKeyboardMarkup(keyboard)
+            )
             del last_spawn[chat_id]
         else: await update.message.reply_text("❌ Wrong guess!")
     except: pass
