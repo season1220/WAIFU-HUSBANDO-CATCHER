@@ -216,7 +216,7 @@ async def start(update: Update, context: CallbackContext):
             except: pass
 
         # --- 1. RANDOM AMV LOGIC ---
-        # Database se ek random AMV dhundenge (type: 'amv')
+        # Database se AMV (video) dhundenge
         pipeline = [
             {'$match': {'type': 'amv'}}, 
             {'$sample': {'size': 1}}
@@ -225,30 +225,31 @@ async def start(update: Update, context: CallbackContext):
 
         # Agar AMV mili to wo use karenge, nahi to default photo
         if amv_list:
-            media_url = amv_list[0]['img_url'] # DB mein file_id 'img_url' field mein hi save hota hai
+            media_url = amv_list[0]['img_url']
             is_video = True
         else:
-            media_url = PHOTO_URL # Fallback agar koi AMV upload nahi hai
+            media_url = PHOTO_URL # Fallback photo
             is_video = False
 
-        # --- 2. CAPTION & STYLE ---
+        # --- 2. CAPTION & STYLE (EXACT FONT) ---
         uptime = get_readable_time(int(time.time() - START_TIME))
-        ping = f"{random.choice([12, 19, 25, 31])}.{random.randint(10,99)}"
-        bot_name = context.bot.first_name.upper()
+        ping = f"{random.choice([12, 19, 25, 31])}.{random.randint(10,99)} ms"
+        
+        caption = f"""🍃 𝑮𝒓𝒆𝒆𝒕𝒊𝒏𝒈𝒔, 𝙉𝙞𝙘𝙚 𝙩𝙤 𝙢𝙚𝙚𝙩 𝙮𝙤𝙪! 🜲✨  
+╔════════⋆⋅▣⋅⋆════════╗
 
-        caption = (
-            f"🍃 GREETINGS, I'M ⌜ {bot_name} ⌟ ♕🫧, NICE TO MEET YOU!\n"
-            f"───────⫷⫸───────\n"
-            f"◎ WHAT I DO: I SPAWN\n"
-            f"  WAIFUS IN YOUR CHAT FOR\n"
-            f"  USERS TO GRAB.\n"
-            f"◎ TO USE ME: ADD ME TO YOUR\n"
-            f"  GROUP AND TAP THE HELP\n"
-            f"  BUTTON FOR DETAILS.\n"
-            f"───────⫷⫸───────\n"
-            f"➺ PING: {ping} ms\n"
-            f"➺ UPTIME: {uptime}"
-        )
+⦾ 𝙒𝙝𝙖𝙩 𝙄 𝙙𝙤:  
+     𝘐 𝘴𝘱𝘢𝘸𝘯 𝘸𝘢𝘪𝘧𝘶𝘴 𝘪𝘯 𝘺𝘰𝘶𝘳 𝘤𝘩𝘢𝘵  
+     𝘧𝘰𝘳 𝘶𝘴𝘦𝘳𝘴 𝘵𝘰 𝘨𝘳𝘢𝘣.
+
+⦾ 𝙃𝙤𝙬 𝙩𝙤 𝙪𝙨𝙚 𝙢𝙚:  
+     𝘈𝘥𝘥 𝘮𝘦 𝘵𝘰 𝘺𝘰𝘶𝘳 𝘨𝘳𝘰𝘶𝘱 𝘢𝘯𝘥  
+     𝘵𝘢𝘱 𝘵𝘩𝘦 𝙃𝙚𝙡𝙥 𝘣𝘶𝘵𝘵𝘰𝘯.
+
+╚════════⋆⋅▣⋅⋆════════╝
+
+➺ 𝙋𝙞𝙣𝙜: {ping}  
+➺ 𝙐𝙥𝙩𝙞𝙢𝙚: {uptime}"""
 
         # --- 3. BUTTONS ---
         keyboard = [
@@ -259,6 +260,7 @@ async def start(update: Update, context: CallbackContext):
         ]
         
         # --- 4. SEND MESSAGE ---
+        # reply_video use karne se video rectangular aur player controls ke sath aati hai
         if is_video:
             await update.message.reply_video(
                 video=media_url, 
@@ -275,29 +277,6 @@ async def start(update: Update, context: CallbackContext):
             )
 
     except Exception as e: logger.error(f"Start Error: {e}")
-async def help_menu(update: Update, context: CallbackContext):
-    msg = """
-<b>⚙️ COMMAND LIST</b>
-/guess - Catch character
-/ball - Win Waifu Dollars
-/harem - Collection
-/profile - Check Profile
-/shop - Cosmic Bazaar
-/adventure - Go on mission
-/market - User Market
-/sell - Sell character
-/buy - Buy character
-/trade - Trade
-/gift - Gift
-/daily - Free coins
-/check - Check Info
-/stats - Check User Count (Admin)
-"""
-    if update.callback_query: await update.callback_query.message.reply_text(msg, parse_mode='HTML')
-    else: await update.message.reply_text(msg, parse_mode='HTML')
-
-# --- ADMIN COMMANDS ---
-
 async def stats(update: Update, context: CallbackContext):
     if update.effective_user.id != OWNER_ID: return
     count = await col_users.count_documents({})
