@@ -79,19 +79,19 @@ RARITY_MAP = {
 
 # 2. Updated Price Map (New Rarity ke hisab se keys match honi chahiye)
 RARITY_PRICE = {
-    "Low": 200, 
-    "Medium": 500, 
-    "High": 1000, 
-    "Special Edition": 2000, 
-    "Elite Edition": 3000, 
-    "Legendary": 5000, 
-    "Valentine": 6000, 
-    "Halloween": 6000, 
-    "Winter": 6000, 
-    "Summer": 6000, 
-    "Royal": 10000, 
-    "Luxury": 20000, 
-    "Amv": 50000
+    "Low": 40, 
+    "Medium": 40, 
+    "High": 40, 
+    "Special Edition": 40, 
+    "Elite Edition": 40, 
+    "Legendary": 40, 
+    "Valentine": 40, 
+    "Halloween": 40, 
+    "Winter": 40, 
+    "Summer": 40, 
+    "Royal": 40, 
+    "Luxury": 40, 
+    "Amv": 500
 }
 
 # 3. Updated Emoji Function (Taaki display sahi aaye)
