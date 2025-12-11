@@ -275,7 +275,31 @@ async def start(update: Update, context: CallbackContext):
                 parse_mode='HTML', 
                 reply_markup=InlineKeyboardMarkup(keyboard)
             )
-
+async def help_menu(update: Update, context: CallbackContext):
+    msg = """
+<b>⚙️ COMMAND LIST</b>
+/guess - Catch character
+/ball - Win Waifu Dollars
+/harem - Collection
+/profile - Check Profile
+/shop - Cosmic Bazaar
+/adventure - Go on mission
+/market - User Market
+/sell - Sell character
+/buy - Buy character
+/trade - Trade
+/gift - Gift
+/daily - Free coins
+/check - Check Info
+/stats - Check User Count (Admin)
+"""
+    # Agar button click se aaya hai
+    if update.callback_query: 
+        await update.callback_query.message.reply_text(msg, parse_mode='HTML')
+        await update.callback_query.answer()
+    # Agar command (/help) se aaya hai
+    else: 
+        await update.message.reply_text(msg, parse_mode='HTML')
     except Exception as e: logger.error(f"Start Error: {e}")
 async def stats(update: Update, context: CallbackContext):
     if update.effective_user.id != OWNER_ID: return
