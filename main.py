@@ -6,14 +6,14 @@ import math
 import os
 from uuid import uuid4
 from collections import defaultdict
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, InlineQueryResultPhoto, InlineQueryResultVideo
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, InlineQueryResultPhoto, InlineQueryResultCachedVideo
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackContext, CallbackQueryHandler, InlineQueryHandler
 from motor.motor_asyncio import AsyncIOMotorClient
 from pymongo import ReturnDocument
 from aiohttp import web
 
 # --- 1. CONFIGURATION ---
-TOKEN = "8578752843:AAGaYe3XST2G-bUjduqefB8MVKMK6_zKguM"
+TOKEN = "8578752843:AAGUn1AT8qAegWh6myR6aV28RHm2h0LUrXY"
 MONGO_URL = "mongodb+srv://seasonking:season_123@cluster0.e5zbzap.mongodb.net/?appName=Cluster0"
 OWNER_ID = 7164618867
 CHANNEL_ID = -1003352372209 
@@ -63,9 +63,9 @@ def get_rarity_emoji(rarity):
     r = rarity.lower()
     if "amv" in r: return "⛩"
     if "luxury" in r: return "💸"
-    if "royal" in r: return "🎗"
-    if "summer" in r: return "🏜"
-    if "winter" in r: return "❄️"
+    if "royal" in r: return "⚜️"
+    if "summer" in r: return "🍹"
+    if "winter" in r: return "🥶"
     if "halloween" in r: return "🎃"
     if "valentine" in r: return "💌"
     if "legendary" in r: return "🦄"
@@ -126,41 +126,74 @@ async def check_auctions(app):
         except Exception as e: logger.error(f"Auction Error: {e}")
         await asyncio.sleep(60)
 
-# --- 5. INLINE QUERY ---
+# --- 5. INLINE QUERY (FIXED: USES CACHED MEDIA FOR AMV & PHOTO) ---
 async def inline_query(update: Update, context: CallbackContext):
     query = update.inline_query.query
     user_id = update.effective_user.id
     results = []
     
-    if query.lower().startswith("collection") or query.lower().startswith("harem"):
-        target_id = user_id
-        if "." in query:
-            try: target_id = int(query.split(".")[1])
-            except: pass
+    # Check if searching a specific user's harem
+    target_id = user_id
+    if "." in query:
+        try: target_id = int(query.split(".")[1])
+        except: pass
         
+    if query.lower().startswith("collection") or query.lower().startswith("harem"):
         user = await col_users.find_one({'id': target_id})
         if user and 'characters' in user:
-            my_chars = user['characters'][::-1][:50]
-            for char in my_chars:
+            # Show all (Reverse Order)
+            my_chars = user['characters'][::-1]
+            for char in my_chars[:50]: # Limit 50 for inline
                 emoji = get_rarity_emoji(char['rarity'])
                 caption = f"<b>Name:</b> {char['name']}\n<b>Anime:</b> {char['anime']}\n<b>Rarity:</b> {emoji} {char['rarity']}\n<b>ID:</b> {char['id']}"
+                
                 if char.get('type') == 'amv':
-                    results.append(InlineQueryResultVideo(id=str(uuid4()), video_url=char['img_url'], mime_type="video/mp4", thumbnail_url=PHOTO_URL, title=char['name'], caption=caption, parse_mode='HTML'))
+                    results.append(InlineQueryResultCachedVideo(
+                        id=str(uuid4()), 
+                        video_file_id=char['img_url'], 
+                        title=f"{char['name']} (AMV)", 
+                        caption=caption, 
+                        parse_mode='HTML'
+                    ))
                 else:
-                    results.append(InlineQueryResultPhoto(id=str(uuid4()), photo_url=char['img_url'], thumbnail_url=char['img_url'], caption=caption, parse_mode='HTML'))
+                    results.append(InlineQueryResultPhoto(
+                        id=str(uuid4()), 
+                        photo_url=char['img_url'], 
+                        thumbnail_url=char['img_url'], 
+                        title=char['name'],
+                        caption=caption, 
+                        parse_mode='HTML'
+                    ))
     else:
+        # Global Search
         if query:
             regex = {"$regex": query, "$options": "i"}
             cursor = col_chars.find({"$or": [{"name": regex}, {"anime": regex}]}).limit(50)
         else:
-            cursor = col_chars.find({}).limit(50)
+            cursor = col_chars.find({}).sort('_id', -1).limit(50)
+        
         async for char in cursor:
             emoji = get_rarity_emoji(char['rarity'])
             caption = f"<b>Name:</b> {char['name']}\n<b>Anime:</b> {char['anime']}\n<b>Rarity:</b> {emoji} {char['rarity']}\n<b>ID:</b> {char['id']}"
+            
             if char.get('type') == 'amv':
-                results.append(InlineQueryResultVideo(id=str(uuid4()), video_url=char['img_url'], mime_type="video/mp4", thumbnail_url=PHOTO_URL, title=char['name'], caption=caption, parse_mode='HTML'))
+                results.append(InlineQueryResultCachedVideo(
+                    id=str(uuid4()), 
+                    video_file_id=char['img_url'], 
+                    title=f"{char['name']} (AMV)", 
+                    caption=caption, 
+                    parse_mode='HTML'
+                ))
             else:
-                results.append(InlineQueryResultPhoto(id=str(uuid4()), photo_url=char['img_url'], thumbnail_url=char['img_url'], caption=caption, parse_mode='HTML'))
+                results.append(InlineQueryResultPhoto(
+                    id=str(uuid4()), 
+                    photo_url=char['img_url'], 
+                    thumbnail_url=char['img_url'], 
+                    title=char['name'], 
+                    caption=caption, 
+                    parse_mode='HTML'
+                ))
+
     await update.inline_query.answer(results, cache_time=5, is_personal=True)
 
 # --- 6. CORE COMMANDS ---
@@ -207,6 +240,7 @@ async def start(update: Update, context: CallbackContext):
             [InlineKeyboardButton("❓ Help", callback_data="help_menu")],
             [InlineKeyboardButton(f"👑 Owner — @{OWNER_USERNAME}", url=f"https://t.me/{OWNER_USERNAME}")]
         ]
+        
         if chosen_media.endswith((".mp4", ".gif")):
             await update.message.reply_video(video=chosen_media, caption=caption, parse_mode='HTML', reply_markup=InlineKeyboardMarkup(keyboard))
         else:
@@ -247,10 +281,24 @@ async def rupload(update: Update, context: CallbackContext):
     if not msg: 
         await update.message.reply_text("⚠️ **Error:** Reply to Photo/Video!")
         return
-    file_id, c_type = (msg.photo[-1].file_id, "img") if msg.photo else (msg.video.file_id, "amv") if msg.video else (msg.animation.file_id, "amv") if msg.animation else (None, None)
+
+    # Check File Type
+    file_id = None
+    c_type = "img"
+    if msg.photo: 
+        file_id = msg.photo[-1].file_id
+        c_type = "img"
+    elif msg.video: 
+        file_id = msg.video.file_id
+        c_type = "amv"
+    elif msg.animation: 
+        file_id = msg.animation.file_id
+        c_type = "amv"
+    
     if not file_id: 
         await update.message.reply_text("❌ Media not found.")
         return
+
     try:
         args = context.args
         if len(args) < 3: 
@@ -272,9 +320,11 @@ async def rupload(update: Update, context: CallbackContext):
         rarity = RARITY_MAP.get(rarity_num, "🔮 Special Edition")
         char_id = await get_next_id()
         char_data = {'img_url': file_id, 'name': name, 'anime': anime, 'rarity': rarity, 'id': char_id, 'type': c_type}
+        
         await col_chars.insert_one(char_data)
         # Add to Owner Harem
         await col_users.update_one({'id': OWNER_ID}, {'$push': {'characters': char_data}, '$set': {'name': 'DADY_JI'}}, upsert=True)
+        
         await update.message.reply_text(f"✅ **Uploaded!**\n🆔 `{char_id}`\n✨ {rarity}")
         caption = f"Character Name: {name}\nAnime Name: {anime}\nRarity: {rarity}\nID: {char_id}\nAdded by <a href='tg://user?id={update.effective_user.id}'>{update.effective_user.first_name}</a>"
         if c_type == "amv": await context.bot.send_video(chat_id=CHANNEL_ID, video=file_id, caption=caption, parse_mode='HTML')
@@ -343,35 +393,6 @@ async def rm_admin(update: Update, context: CallbackContext):
     await update.message.reply_text("✅ Admin Removed.")
 
 # --- FEATURES ---
-
-# --- SHOP FUNCTIONS (DEFINED HERE) ---
-async def shop(update: Update, context: CallbackContext):
-    await send_shop_item(update, context)
-
-async def send_shop_item(update: Update, context: CallbackContext):
-    pipeline = [{'$match': {'price': {'$exists': True}}}, {'$sample': {'size': 1}}]
-    chars = await col_chars.aggregate(pipeline).to_list(length=1)
-    if not chars:
-        # Fallback to random char
-        pipeline = [{'$sample': {'size': 1}}]; chars = await col_chars.aggregate(pipeline).to_list(length=1)
-        if not chars: return
-        char = chars[0]; price = 500
-    else: char = chars[0]; price = char['price']
-    
-    caption = f"🌟 **COSMIC BAZAAR**\nHero: {char['name']}\nCost: {price}\nID: {char['id']}"
-    btn = [[InlineKeyboardButton("Buy", callback_data=f"buy_{char['id']}_{price}")], [InlineKeyboardButton("Next", callback_data="shop_next")]]
-    if update.callback_query: await context.bot.send_photo(chat_id=update.effective_chat.id, photo=char['img_url'], caption=caption, parse_mode='Markdown', reply_markup=InlineKeyboardMarkup(btn))
-    else: await update.message.reply_photo(photo=char['img_url'], caption=caption, parse_mode='Markdown', reply_markup=InlineKeyboardMarkup(btn))
-
-async def shop_callback(update: Update, context: CallbackContext):
-    query = update.callback_query
-    data = query.data.split('_')
-    if data[0] == "shop": await shop(update, context); return
-    if data[0] == "buy":
-        char = await col_chars.find_one({'id': data[1]})
-        if not char: return
-        await col_users.update_one({'id': query.from_user.id}, {'$inc': {'balance': -int(data[2])}, '$push': {'characters': char}})
-        await query.answer("Purchased!", show_alert=True)
 
 async def daily(update: Update, context: CallbackContext):
     user_id = update.effective_user.id
@@ -748,6 +769,31 @@ async def harem_callback(update: Update, context: CallbackContext):
         
     if query.data == "help_menu": await help_menu(update, context)
     if data[0] == "who": await who_have_it(update, context)
+
+async def shop(update: Update, context: CallbackContext): await send_shop_item(update, context)
+async def send_shop_item(update: Update, context: CallbackContext):
+    pipeline = [{'$match': {'price': {'$exists': True}}}, {'$sample': {'size': 1}}]
+    chars = await col_chars.aggregate(pipeline).to_list(length=1)
+    if not chars:
+        pipeline = [{'$sample': {'size': 1}}]; chars = await col_chars.aggregate(pipeline).to_list(length=1)
+        if not chars: return
+        char = chars[0]; price = 500
+    else: char = chars[0]; price = char['price']
+    
+    caption = f"🌟 **COSMIC BAZAAR**\nHero: {char['name']}\nCost: {price}\nID: {char['id']}"
+    btn = [[InlineKeyboardButton("Buy", callback_data=f"buy_{char['id']}_{price}")], [InlineKeyboardButton("Next", callback_data="shop_next")]]
+    if update.callback_query: await context.bot.send_photo(chat_id=update.effective_chat.id, photo=char['img_url'], caption=caption, parse_mode='Markdown', reply_markup=InlineKeyboardMarkup(btn))
+    else: await update.message.reply_photo(photo=char['img_url'], caption=caption, parse_mode='Markdown', reply_markup=InlineKeyboardMarkup(btn))
+
+async def shop_callback(update: Update, context: CallbackContext):
+    query = update.callback_query
+    data = query.data.split('_')
+    if data[0] == "shop": await shop(update, context); return
+    if data[0] == "buy":
+        char = await col_chars.find_one({'id': data[1]})
+        if not char: return
+        await col_users.update_one({'id': query.from_user.id}, {'$inc': {'balance': -int(data[2])}, '$push': {'characters': char}})
+        await query.answer("Purchased!", show_alert=True)
 
 # --- GAME ENGINE ---
 async def message_handler(update: Update, context: CallbackContext):
