@@ -126,73 +126,46 @@ async def check_auctions(app):
         except Exception as e: logger.error(f"Auction Error: {e}")
         await asyncio.sleep(60)
 
-# --- 5. INLINE QUERY (FIXED: USES CACHED MEDIA FOR AMV & PHOTO) ---
+# --- 5. INLINE QUERY (FIXED) ---
 async def inline_query(update: Update, context: CallbackContext):
     query = update.inline_query.query
     user_id = update.effective_user.id
     results = []
     
-    # Check if searching a specific user's harem
-    target_id = user_id
-    if "." in query:
-        try: target_id = int(query.split(".")[1])
-        except: pass
-        
     if query.lower().startswith("collection") or query.lower().startswith("harem"):
+        target_id = user_id
+        if "." in query:
+            try: target_id = int(query.split(".")[1])
+            except: pass
+        
         user = await col_users.find_one({'id': target_id})
         if user and 'characters' in user:
-            # Show all (Reverse Order)
-            my_chars = user['characters'][::-1]
-            for char in my_chars[:50]: # Limit 50 for inline
+            # Show last 50
+            my_chars = user['characters'][::-1][:50]
+            for char in my_chars:
                 emoji = get_rarity_emoji(char['rarity'])
                 caption = f"<b>Name:</b> {char['name']}\n<b>Anime:</b> {char['anime']}\n<b>Rarity:</b> {emoji} {char['rarity']}\n<b>ID:</b> {char['id']}"
                 
                 if char.get('type') == 'amv':
-                    results.append(InlineQueryResultCachedVideo(
-                        id=str(uuid4()), 
-                        video_file_id=char['img_url'], 
-                        title=f"{char['name']} (AMV)", 
-                        caption=caption, 
-                        parse_mode='HTML'
-                    ))
+                    results.append(InlineQueryResultCachedVideo(id=str(uuid4()), video_file_id=char['img_url'], title=f"{char['name']} (AMV)", caption=caption, parse_mode='HTML'))
                 else:
-                    results.append(InlineQueryResultPhoto(
-                        id=str(uuid4()), 
-                        photo_url=char['img_url'], 
-                        thumbnail_url=char['img_url'], 
-                        title=char['name'],
-                        caption=caption, 
-                        parse_mode='HTML'
-                    ))
+                    results.append(InlineQueryResultPhoto(id=str(uuid4()), photo_url=char['img_url'], thumbnail_url=char['img_url'], caption=caption, parse_mode='HTML'))
     else:
         # Global Search
         if query:
             regex = {"$regex": query, "$options": "i"}
             cursor = col_chars.find({"$or": [{"name": regex}, {"anime": regex}]}).limit(50)
         else:
-            cursor = col_chars.find({}).sort('_id', -1).limit(50)
+            cursor = col_chars.find({}).limit(50)
         
         async for char in cursor:
             emoji = get_rarity_emoji(char['rarity'])
             caption = f"<b>Name:</b> {char['name']}\n<b>Anime:</b> {char['anime']}\n<b>Rarity:</b> {emoji} {char['rarity']}\n<b>ID:</b> {char['id']}"
             
             if char.get('type') == 'amv':
-                results.append(InlineQueryResultCachedVideo(
-                    id=str(uuid4()), 
-                    video_file_id=char['img_url'], 
-                    title=f"{char['name']} (AMV)", 
-                    caption=caption, 
-                    parse_mode='HTML'
-                ))
+                results.append(InlineQueryResultCachedVideo(id=str(uuid4()), video_file_id=char['img_url'], title=f"{char['name']} (AMV)", caption=caption, parse_mode='HTML'))
             else:
-                results.append(InlineQueryResultPhoto(
-                    id=str(uuid4()), 
-                    photo_url=char['img_url'], 
-                    thumbnail_url=char['img_url'], 
-                    title=char['name'], 
-                    caption=caption, 
-                    parse_mode='HTML'
-                ))
+                results.append(InlineQueryResultPhoto(id=str(uuid4()), photo_url=char['img_url'], thumbnail_url=char['img_url'], title=char['name'], caption=caption, parse_mode='HTML'))
 
     await update.inline_query.answer(results, cache_time=5, is_personal=True)
 
@@ -282,19 +255,7 @@ async def rupload(update: Update, context: CallbackContext):
         await update.message.reply_text("⚠️ **Error:** Reply to Photo/Video!")
         return
 
-    # Check File Type
-    file_id = None
-    c_type = "img"
-    if msg.photo: 
-        file_id = msg.photo[-1].file_id
-        c_type = "img"
-    elif msg.video: 
-        file_id = msg.video.file_id
-        c_type = "amv"
-    elif msg.animation: 
-        file_id = msg.animation.file_id
-        c_type = "amv"
-    
+    file_id, c_type = (msg.photo[-1].file_id, "img") if msg.photo else (msg.video.file_id, "amv") if msg.video else (msg.animation.file_id, "amv") if msg.animation else (None, None)
     if not file_id: 
         await update.message.reply_text("❌ Media not found.")
         return
