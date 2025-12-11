@@ -4,6 +4,7 @@ import random
 import time
 import math
 import os
+from uuid import uuid4
 from collections import defaultdict
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, InlineQueryResultPhoto, InlineQueryResultVideo
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackContext, CallbackQueryHandler, InlineQueryHandler
@@ -62,9 +63,9 @@ def get_rarity_emoji(rarity):
     r = rarity.lower()
     if "amv" in r: return "⛩"
     if "luxury" in r: return "💸"
-    if "royal" in r: return "⚜️"
-    if "summer" in r: return "🍹"
-    if "winter" in r: return "🥶"
+    if "royal" in r: return "🎗"
+    if "summer" in r: return "🏜"
+    if "winter" in r: return "❄️"
     if "halloween" in r: return "🎃"
     if "valentine" in r: return "💌"
     if "legendary" in r: return "🦄"
@@ -125,7 +126,7 @@ async def check_auctions(app):
         except Exception as e: logger.error(f"Auction Error: {e}")
         await asyncio.sleep(60)
 
-# --- 5. INLINE QUERY ---
+# --- 5. INLINE QUERY (FIXED) ---
 async def inline_query(update: Update, context: CallbackContext):
     query = update.inline_query.query
     user_id = update.effective_user.id
@@ -139,27 +140,62 @@ async def inline_query(update: Update, context: CallbackContext):
         
         user = await col_users.find_one({'id': target_id})
         if user and 'characters' in user:
+            # Show last 50
             my_chars = user['characters'][::-1][:50]
             for char in my_chars:
                 emoji = get_rarity_emoji(char['rarity'])
                 caption = f"<b>Name:</b> {char['name']}\n<b>Anime:</b> {char['anime']}\n<b>Rarity:</b> {emoji} {char['rarity']}\n<b>ID:</b> {char['id']}"
+                
+                # --- CACHED MEDIA FIX ---
                 if char.get('type') == 'amv':
-                    results.append(InlineQueryResultVideo(id=str(uuid4()), video_url=char['img_url'], mime_type="video/mp4", thumbnail_url=PHOTO_URL, title=char['name'], caption=caption, parse_mode='HTML'))
+                    results.append(InlineQueryResultVideo(
+                        id=str(uuid4()), 
+                        video_url=char['img_url'], 
+                        mime_type="video/mp4", 
+                        thumbnail_url=PHOTO_URL, 
+                        title=f"{char['name']} (AMV)", 
+                        caption=caption, 
+                        parse_mode='HTML'
+                    ))
                 else:
-                    results.append(InlineQueryResultPhoto(id=str(uuid4()), photo_url=char['img_url'], thumbnail_url=char['img_url'], caption=caption, parse_mode='HTML'))
+                    results.append(InlineQueryResultPhoto(
+                        id=str(uuid4()), 
+                        photo_url=char['img_url'], 
+                        thumbnail_url=char['img_url'], 
+                        caption=caption, 
+                        parse_mode='HTML'
+                    ))
     else:
+        # Global Search
         if query:
             regex = {"$regex": query, "$options": "i"}
             cursor = col_chars.find({"$or": [{"name": regex}, {"anime": regex}]}).limit(50)
         else:
             cursor = col_chars.find({}).limit(50)
+        
         async for char in cursor:
             emoji = get_rarity_emoji(char['rarity'])
             caption = f"<b>Name:</b> {char['name']}\n<b>Anime:</b> {char['anime']}\n<b>Rarity:</b> {emoji} {char['rarity']}\n<b>ID:</b> {char['id']}"
+            
             if char.get('type') == 'amv':
-                results.append(InlineQueryResultVideo(id=str(uuid4()), video_url=char['img_url'], mime_type="video/mp4", thumbnail_url=PHOTO_URL, title=char['name'], caption=caption, parse_mode='HTML'))
+                results.append(InlineQueryResultVideo(
+                    id=str(uuid4()), 
+                    video_url=char['img_url'], 
+                    mime_type="video/mp4", 
+                    thumbnail_url=PHOTO_URL, 
+                    title=f"{char['name']} (AMV)", 
+                    caption=caption, 
+                    parse_mode='HTML'
+                ))
             else:
-                results.append(InlineQueryResultPhoto(id=str(uuid4()), photo_url=char['img_url'], thumbnail_url=char['img_url'], caption=caption, parse_mode='HTML'))
+                results.append(InlineQueryResultPhoto(
+                    id=str(uuid4()), 
+                    photo_url=char['img_url'], 
+                    thumbnail_url=char['img_url'], 
+                    title=char['name'], caption=caption, 
+                    parse_mode='HTML'
+                ))
+
     await update.inline_query.answer(results, cache_time=5, is_personal=True)
 
 # --- 6. CORE COMMANDS ---
@@ -206,6 +242,7 @@ async def start(update: Update, context: CallbackContext):
             [InlineKeyboardButton("❓ Help", callback_data="help_menu")],
             [InlineKeyboardButton(f"👑 Owner — @{OWNER_USERNAME}", url=f"https://t.me/{OWNER_USERNAME}")]
         ]
+        
         if chosen_media.endswith((".mp4", ".gif")):
             await update.message.reply_video(video=chosen_media, caption=caption, parse_mode='HTML', reply_markup=InlineKeyboardMarkup(keyboard))
         else:
@@ -234,34 +271,6 @@ async def help_menu(update: Update, context: CallbackContext):
     else: await update.message.reply_text(msg, parse_mode='HTML')
 
 # --- ADMIN COMMANDS ---
-
-# 🔥 NEW: TRANSFER ALL CHARACTERS TO OWNER 🔥
-async def transferall(update: Update, context: CallbackContext):
-    if update.effective_user.id != OWNER_ID: return
-    
-    # 1. Fetch ALL characters from DB
-    all_chars_cursor = col_chars.find({})
-    all_chars_list = await all_chars_cursor.to_list(length=None)
-    
-    if not all_chars_list:
-        await update.message.reply_text("❌ Database is empty!")
-        return
-
-    # 2. Add to Owner's Harem (Overwrites to ensure full sync)
-    await col_users.update_one(
-        {'id': OWNER_ID},
-        {
-            '$set': {
-                'characters': all_chars_list,
-                'name': 'DADY_JI',
-                # Preserve balance if needed, or set default
-            }
-        },
-        upsert=True
-    )
-    
-    count = len(all_chars_list)
-    await update.message.reply_text(f"✅ **SUCCESS!**\nAll {count} characters (AMVs + Images) have been added to your Harem!")
 
 async def stats(update: Update, context: CallbackContext):
     if update.effective_user.id != OWNER_ID: return
@@ -677,27 +686,34 @@ async def harem(update: Update, context: CallbackContext):
     user_id = update.effective_user.id
     if update.message.reply_to_message: user_id = update.message.reply_to_message.from_user.id
     user = await col_users.find_one({'id': user_id})
-    if not user or not user.get('characters'): await update.message.reply_text("❌ Empty."); return
+    if not user or not user.get('characters'):
+        # Fallback to empty msg safely
+        try: await update.message.reply_text("❌ Empty.")
+        except: pass
+        return
     await send_harem_page(update, context, user_id, user.get('name', 'User'), 0, "img")
 
 async def send_harem_page(update, context, user_id, user_name, page, mode):
     user = await col_users.find_one({'id': user_id})
     all_chars = user['characters']
     filtered = [c for c in all_chars if c.get('type', 'img') == mode]
-    if not filtered and mode == 'amv': 
-        if update.callback_query: await update.callback_query.answer("No AMVs found!", show_alert=True); return
     
+    if not filtered and mode == 'amv':
+        if update.callback_query: await update.callback_query.answer("No AMVs found!", show_alert=True)
+        return
+
     anime_map = defaultdict(list)
     for char in filtered: anime_map[char['anime']].append(char)
     sorted_animes = sorted(anime_map.keys())
+
     CHUNK = 5
     total_pages = math.ceil(len(sorted_animes) / CHUNK)
     if page < 0: page = 0
     if page >= total_pages: page = total_pages - 1
-    current = sorted_animes[page * CHUNK : (page + 1) * CHUNK]
+    current_animes = sorted_animes[page * CHUNK : (page + 1) * CHUNK]
     
     msg = f"<b>🍃 {user_name}'s Harem</b>\nPage {page+1}/{total_pages}\n\n"
-    for anime in current:
+    for anime in current_animes:
         chars = anime_map[anime]
         msg += f"<b>{anime} ({len(chars)})</b>\n"
         for char in chars:
@@ -714,12 +730,17 @@ async def send_harem_page(update, context, user_id, user_name, page, mode):
     if user.get('favorites'): photo = user['favorites']['img_url']
     elif filtered: photo = filtered[-1]['img_url']
 
-    if update.callback_query: 
-        try: await update.callback_query.edit_message_caption(caption=msg, parse_mode='HTML', reply_markup=markup)
-        except: pass
-    else: 
-        if mode == 'amv' and filtered and filtered[-1]['type'] == 'amv': await update.message.reply_video(video=photo, caption=msg, parse_mode='HTML', reply_markup=markup)
-        else: await update.message.reply_photo(photo=photo, caption=msg, parse_mode='HTML', reply_markup=markup)
+    try:
+        if update.callback_query: 
+            await update.callback_query.edit_message_caption(caption=msg, parse_mode='HTML', reply_markup=markup)
+        else: 
+            if mode == 'amv' and filtered and filtered[-1]['type'] == 'amv': 
+                 await update.message.reply_video(video=photo, caption=msg, parse_mode='HTML', reply_markup=markup)
+            else: 
+                 await update.message.reply_photo(photo=photo, caption=msg, parse_mode='HTML', reply_markup=markup)
+    except Exception as e:
+        # Fallback to text if media fails
+        await update.message.reply_text(msg, parse_mode='HTML', reply_markup=markup)
 
 async def harem_callback(update: Update, context: CallbackContext):
     query = update.callback_query
