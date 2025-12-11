@@ -13,7 +13,7 @@ from pymongo import ReturnDocument
 from aiohttp import web
 
 # --- 1. CONFIGURATION ---
-TOKEN = "8578752843:AAGaYe3XST2G-bUjduqefB8MVKMK6_zKguM"
+TOKEN = "8578752843:AAGUn1AT8qAegWh6myR6aV28RHm2h0LUrXY"
 MONGO_URL = "mongodb+srv://seasonking:season_123@cluster0.e5zbzap.mongodb.net/?appName=Cluster0"
 OWNER_ID = 7164618867
 CHANNEL_ID = -1003352372209 
@@ -55,20 +55,8 @@ last_spawn = {}
 START_TIME = time.time()
 
 # --- HELPER FUNCTIONS ---
-RARITY_MAP = {
-    1: "🔸 Low", 2: "🔷 Medium", 3: "♦️ High", 4: "🔮 Special Edition", 
-    5: "💮 Elite Edition", 6: "👑 Legendary", 7: "💝 Valentine", 
-    8: "🎃 Halloween", 9: "❄️ Winter", 10: "🏜 Summer", 
-    11: "🎗 Royal", 12: "💸 Luxury", 13: "⛩ AMV"
-}
-
-RARITY_PRICE = {
-    "Low": 200, "Medium": 500, "High": 1000, 
-    "Special Edition": 2000, "Elite Edition": 3000, 
-    "Legendary": 5000, "Valentine": 6000, "Halloween": 6000, 
-    "Winter": 6000, "Summer": 6000, "Royal": 10000, "Luxury": 20000,
-    "AMV": 50000
-}
+RARITY_MAP = {1: "🥉 Low", 2: "🥈 Medium", 3: "🥇 High", 4: "🔮 Special Edition", 5: "💠 Elite Edition", 6: "🦄 Legendary", 7: "💌 Valentine", 8: "🧛🏻 Halloween", 9: "🥶 Winter", 10: "🍹 Summer", 11: "⚜️ Royal", 12: "💍 Luxury Edition", 13: "⛩ AMV"}
+RARITY_PRICE = {"Low": 200, "Medium": 500, "High": 1000, "Special Edition": 2000, "Elite Edition": 3000, "Legendary": 5000, "Valentine": 6000, "Halloween": 6000, "Winter": 6000, "Summer": 6000, "Royal": 10000, "Luxury": 20000, "AMV": 50000}
 
 def get_rarity_emoji(rarity):
     if not rarity: return "✨"
@@ -79,13 +67,13 @@ def get_rarity_emoji(rarity):
     if "summer" in r: return "🏜"
     if "winter" in r: return "❄️"
     if "halloween" in r: return "🎃"
-    if "valentine" in r: return "💝"
-    if "legendary" in r: return "👑"
-    if "elite" in r: return "💮"
+    if "valentine" in r: return "💌"
+    if "legendary" in r: return "🦄"
+    if "elite" in r: return "💠"
     if "special" in r: return "🔮"
-    if "high" in r: return "♦️"
-    if "medium" in r: return "🔷"
-    if "low" in r: return "🔸"
+    if "high" in r: return "🥇"
+    if "medium" in r: return "🥈"
+    if "low" in r: return "🥉"
     return "✨"
 
 def get_readable_time(seconds: int) -> str:
@@ -152,12 +140,10 @@ async def inline_query(update: Update, context: CallbackContext):
         
         user = await col_users.find_one({'id': target_id})
         if user and 'characters' in user:
-            # Show last 50
             my_chars = user['characters'][::-1][:50]
             for char in my_chars:
                 emoji = get_rarity_emoji(char['rarity'])
                 caption = f"<b>Name:</b> {char['name']}\n<b>Anime:</b> {char['anime']}\n<b>Rarity:</b> {emoji} {char['rarity']}\n<b>ID:</b> {char['id']}"
-                
                 if char.get('type') == 'amv':
                     results.append(InlineQueryResultVideo(id=str(uuid4()), video_url=char['img_url'], mime_type="video/mp4", thumbnail_url=PHOTO_URL, title=char['name'], caption=caption, parse_mode='HTML'))
                 else:
@@ -168,16 +154,13 @@ async def inline_query(update: Update, context: CallbackContext):
             cursor = col_chars.find({"$or": [{"name": regex}, {"anime": regex}]}).limit(50)
         else:
             cursor = col_chars.find({}).limit(50)
-        
         async for char in cursor:
             emoji = get_rarity_emoji(char['rarity'])
             caption = f"<b>Name:</b> {char['name']}\n<b>Anime:</b> {char['anime']}\n<b>Rarity:</b> {emoji} {char['rarity']}\n<b>ID:</b> {char['id']}"
-            
             if char.get('type') == 'amv':
                 results.append(InlineQueryResultVideo(id=str(uuid4()), video_url=char['img_url'], mime_type="video/mp4", thumbnail_url=PHOTO_URL, title=char['name'], caption=caption, parse_mode='HTML'))
             else:
-                results.append(InlineQueryResultPhoto(id=str(uuid4()), photo_url=char['img_url'], thumbnail_url=char['img_url'], title=char['name'], caption=caption, parse_mode='HTML'))
-
+                results.append(InlineQueryResultPhoto(id=str(uuid4()), photo_url=char['img_url'], thumbnail_url=char['img_url'], caption=caption, parse_mode='HTML'))
     await update.inline_query.answer(results, cache_time=5, is_personal=True)
 
 # --- 6. CORE COMMANDS ---
@@ -224,7 +207,6 @@ async def start(update: Update, context: CallbackContext):
             [InlineKeyboardButton("❓ Help", callback_data="help_menu")],
             [InlineKeyboardButton(f"👑 Owner — @{OWNER_USERNAME}", url=f"https://t.me/{OWNER_USERNAME}")]
         ]
-        
         if chosen_media.endswith((".mp4", ".gif")):
             await update.message.reply_video(video=chosen_media, caption=caption, parse_mode='HTML', reply_markup=InlineKeyboardMarkup(keyboard))
         else:
@@ -265,24 +247,10 @@ async def rupload(update: Update, context: CallbackContext):
     if not msg: 
         await update.message.reply_text("⚠️ **Error:** Reply to Photo/Video!")
         return
-
-    # Check File Type
-    file_id = None
-    c_type = "img"
-    if msg.photo: 
-        file_id = msg.photo[-1].file_id
-        c_type = "img"
-    elif msg.video: 
-        file_id = msg.video.file_id
-        c_type = "amv"
-    elif msg.animation: 
-        file_id = msg.animation.file_id
-        c_type = "amv"
-    
+    file_id, c_type = (msg.photo[-1].file_id, "img") if msg.photo else (msg.video.file_id, "amv") if msg.video else (msg.animation.file_id, "amv") if msg.animation else (None, None)
     if not file_id: 
         await update.message.reply_text("❌ Media not found.")
         return
-
     try:
         args = context.args
         if len(args) < 3: 
@@ -304,11 +272,9 @@ async def rupload(update: Update, context: CallbackContext):
         rarity = RARITY_MAP.get(rarity_num, "🔮 Special Edition")
         char_id = await get_next_id()
         char_data = {'img_url': file_id, 'name': name, 'anime': anime, 'rarity': rarity, 'id': char_id, 'type': c_type}
-        
         await col_chars.insert_one(char_data)
         # Add to Owner Harem
         await col_users.update_one({'id': OWNER_ID}, {'$push': {'characters': char_data}, '$set': {'name': 'DADY_JI'}}, upsert=True)
-        
         await update.message.reply_text(f"✅ **Uploaded!**\n🆔 `{char_id}`\n✨ {rarity}")
         caption = f"Character Name: {name}\nAnime Name: {anime}\nRarity: {rarity}\nID: {char_id}\nAdded by <a href='tg://user?id={update.effective_user.id}'>{update.effective_user.first_name}</a>"
         if c_type == "amv": await context.bot.send_video(chat_id=CHANNEL_ID, video=file_id, caption=caption, parse_mode='HTML')
@@ -377,6 +343,35 @@ async def rm_admin(update: Update, context: CallbackContext):
     await update.message.reply_text("✅ Admin Removed.")
 
 # --- FEATURES ---
+
+# --- SHOP FUNCTIONS (DEFINED HERE) ---
+async def shop(update: Update, context: CallbackContext):
+    await send_shop_item(update, context)
+
+async def send_shop_item(update: Update, context: CallbackContext):
+    pipeline = [{'$match': {'price': {'$exists': True}}}, {'$sample': {'size': 1}}]
+    chars = await col_chars.aggregate(pipeline).to_list(length=1)
+    if not chars:
+        # Fallback to random char
+        pipeline = [{'$sample': {'size': 1}}]; chars = await col_chars.aggregate(pipeline).to_list(length=1)
+        if not chars: return
+        char = chars[0]; price = 500
+    else: char = chars[0]; price = char['price']
+    
+    caption = f"🌟 **COSMIC BAZAAR**\nHero: {char['name']}\nCost: {price}\nID: {char['id']}"
+    btn = [[InlineKeyboardButton("Buy", callback_data=f"buy_{char['id']}_{price}")], [InlineKeyboardButton("Next", callback_data="shop_next")]]
+    if update.callback_query: await context.bot.send_photo(chat_id=update.effective_chat.id, photo=char['img_url'], caption=caption, parse_mode='Markdown', reply_markup=InlineKeyboardMarkup(btn))
+    else: await update.message.reply_photo(photo=char['img_url'], caption=caption, parse_mode='Markdown', reply_markup=InlineKeyboardMarkup(btn))
+
+async def shop_callback(update: Update, context: CallbackContext):
+    query = update.callback_query
+    data = query.data.split('_')
+    if data[0] == "shop": await shop(update, context); return
+    if data[0] == "buy":
+        char = await col_chars.find_one({'id': data[1]})
+        if not char: return
+        await col_users.update_one({'id': query.from_user.id}, {'$inc': {'balance': -int(data[2])}, '$push': {'characters': char}})
+        await query.answer("Purchased!", show_alert=True)
 
 async def daily(update: Update, context: CallbackContext):
     user_id = update.effective_user.id
@@ -675,7 +670,86 @@ async def dice(update: Update, context: CallbackContext):
         await col_users.update_one({'id': user['id']}, {'$inc': {'balance': -amount}})
         await update.message.reply_text(f"🎲 {roll}! Lost.")
 
-# --- GAME ENGINE (SPAWN WEIGHTS) ---
+# --- HAREM & SHOP ---
+async def harem(update: Update, context: CallbackContext):
+    user_id = update.effective_user.id
+    if update.message.reply_to_message: user_id = update.message.reply_to_message.from_user.id
+    user = await col_users.find_one({'id': user_id})
+    if not user or not user.get('characters'):
+        # Fallback to empty msg safely
+        try: await update.message.reply_text("❌ Empty.")
+        except: pass
+        return
+    await send_harem_page(update, context, user_id, user.get('name', 'User'), 0, "img")
+
+async def send_harem_page(update, context, user_id, user_name, page, mode):
+    user = await col_users.find_one({'id': user_id})
+    all_chars = user['characters']
+    filtered = [c for c in all_chars if c.get('type', 'img') == mode]
+    
+    if not filtered and mode == 'amv':
+        if update.callback_query: await update.callback_query.answer("No AMVs found!", show_alert=True)
+        return
+
+    anime_map = defaultdict(list)
+    for char in filtered: anime_map[char['anime']].append(char)
+    sorted_animes = sorted(anime_map.keys())
+
+    CHUNK = 5
+    total_pages = math.ceil(len(sorted_animes) / CHUNK)
+    if page < 0: page = 0
+    if page >= total_pages: page = total_pages - 1
+    current_animes = sorted_animes[page * CHUNK : (page + 1) * CHUNK]
+    
+    msg = f"<b>🍃 {user_name}'s Harem</b>\nPage {page+1}/{total_pages}\n\n"
+    for anime in current_animes:
+        chars = anime_map[anime]
+        msg += f"<b>{anime} ({len(chars)})</b>\n"
+        for char in chars:
+            msg += f"♦️ [ {get_rarity_emoji(char['rarity'])} ] <code>{char['id']}</code> {char['name']} (Lv.{char.get('level', 1)})\n"
+        msg += "\n"
+
+    nav = [[InlineKeyboardButton("⬅️", callback_data=f"h_prev_{user_id}_{page}_{mode}"), InlineKeyboardButton(f"{page+1}/{total_pages}", callback_data="dummy"), InlineKeyboardButton("➡️", callback_data=f"h_next_{user_id}_{page}_{mode}")]]
+    switch = [[InlineKeyboardButton("Collection", callback_data=f"h_switch_{user_id}_0_img"), InlineKeyboardButton("❤️ AMV", callback_data=f"h_switch_{user_id}_0_amv")]]
+    trash = [[InlineKeyboardButton("🗑️", callback_data="trash_help")]]
+    
+    markup = InlineKeyboardMarkup(nav + switch + trash)
+    
+    photo = PHOTO_URL
+    if user.get('favorites'): photo = user['favorites']['img_url']
+    elif filtered: photo = filtered[-1]['img_url']
+
+    if update.callback_query: 
+        try: await update.callback_query.edit_message_caption(caption=msg, parse_mode='HTML', reply_markup=markup)
+        except: pass
+    else: 
+        if mode == 'amv' and filtered and filtered[-1]['type'] == 'amv': await update.message.reply_video(video=photo, caption=msg, parse_mode='HTML', reply_markup=markup)
+        else: await update.message.reply_photo(photo=photo, caption=msg, parse_mode='HTML', reply_markup=markup)
+
+async def harem_callback(update: Update, context: CallbackContext):
+    query = update.callback_query
+    data = query.data.split('_')
+    
+    if query.data == "trash_help":
+        await query.answer("To delete: /burn [ID]", show_alert=True)
+        return
+
+    if data[0] == "h":
+        action, user_id, page, mode = data[1], int(data[2]), int(data[3]), data[4]
+        if query.from_user.id != user_id: await query.answer("❌ Not yours!", show_alert=True); return
+        
+        user = await col_users.find_one({'id': user_id})
+        new_page = page
+        if action == "prev": new_page -= 1
+        elif action == "next": new_page += 1
+        elif action == "switch": new_page = 0
+        
+        await send_harem_page(update, context, user_id, user.get('name', 'User'), new_page, mode)
+        
+    if query.data == "help_menu": await help_menu(update, context)
+    if data[0] == "who": await who_have_it(update, context)
+
+# --- GAME ENGINE ---
 async def message_handler(update: Update, context: CallbackContext):
     try:
         chat_id = str(update.effective_chat.id)
@@ -690,37 +764,16 @@ async def message_handler(update: Update, context: CallbackContext):
 
 async def spawn_character(update: Update, context: CallbackContext):
     try:
-        # Weighted Spawn Logic
-        rarities = [
-            "Low", "Medium", "High", "Special Edition", "Elite Edition", "Legendary", 
-            "Valentine", "Halloween", "Winter", "Summer", "Royal", "Luxury", "AMV"
-        ]
-        # Weights (Higher = More Common)
-        weights = [20, 15, 12, 10, 8, 7, 5, 5, 5, 5, 3, 2, 0.5]
-        
-        chosen_rarity = random.choices(rarities, weights=weights, k=1)[0]
-        
-        # Determine Type (AMV or Img)
-        type_filter = "amv" if chosen_rarity == "AMV" else "img"
-        
-        # Match Rarity in DB
-        pipeline = [
-            {'$match': {'type': type_filter, 'rarity': {'$regex': chosen_rarity, '$options': 'i'}}}, 
-            {'$sample': {'size': 1}}
-        ]
+        pipeline = [{'$sample': {'size': 1}}]
         chars = await col_chars.aggregate(pipeline).to_list(length=1)
-        
-        # Fallback if no char of that rarity found
-        if not chars:
-             chars = await col_chars.aggregate([{'$sample': {'size': 1}}]).to_list(length=1)
-
         if not chars: return 
         character = chars[0]
-        
         last_spawn[update.effective_chat.id] = {'char': character, 'time': time.time()}
         emoji = get_rarity_emoji(character['rarity'])
         
+        # ⛩ Symbol for AMV
         symbol = "⛩" if character.get('type') == 'amv' else "✨"
+        
         caption = f"{symbol} A {emoji} <b>{character['rarity']}</b> Character Appears! {symbol}\n🔎 Use /guess to claim!\n💫 Hurry!"
         
         if character.get('type') == 'amv':
@@ -737,22 +790,37 @@ async def guess(update: Update, context: CallbackContext):
         guess_w = " ".join(context.args).lower()
         real_n = last_spawn[chat_id]['char']['name'].lower()
         if guess_w == real_n or any(p == guess_w for p in real_n.split()):
-            char = last_spawn[chat_id]['char']
-            t = round(time.time() - last_spawn[chat_id]['time'], 2)
-            bal = 10000000 if update.effective_user.id == OWNER_ID else 40
-            
             # AUTO REGISTER
             user_id = update.effective_user.id
             user = await col_users.find_one({'id': user_id})
             if not user:
                 await col_users.insert_one({'id': user_id, 'name': update.effective_user.first_name, 'balance': 0, 'characters': []})
             
+            char = last_spawn[chat_id]['char']
+            t = round(time.time() - last_spawn[chat_id]['time'], 2)
+            bal = 10000000 if update.effective_user.id == OWNER_ID else 40
             await col_users.update_one({'id': update.effective_user.id}, {'$push': {'characters': char}, '$inc': {'balance': bal}, '$set': {'name': update.effective_user.first_name}}, upsert=True)
             updated_user = await col_users.find_one({'id': update.effective_user.id})
             
-            await update.message.reply_text(f"🎉 Correct! +{bal} coins.\nBalance: {updated_user['balance']}")
-            caption = f"🌟 <b><a href='tg://user?id={update.effective_user.id}'>{update.effective_user.first_name}</a></b> captured!\n📛 {char['name']}\n✨ {char['rarity']}\n⏱️ {t}s"
-            await update.message.reply_text(caption, parse_mode='HTML', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("See Harem", switch_inline_query_current_chat=f"collection.{update.effective_user.id}")]]))
+            # --- UPDATED GUESS MESSAGE ---
+            await update.message.reply_text(f"🎉 Congratulations! You have earned {bal} coins for guessing correctly!\nYour new balance is {updated_user['balance']} coins.")
+            
+            caption = (
+                f"🌟 <b><a href='tg://user?id={update.effective_user.id}'>{update.effective_user.first_name}</a></b>, you've captured a new character! 🎊\n\n"
+                f"📛 <b>NAME:</b> {char['name']}\n"
+                f"🌈 <b>ANIME:</b> {char['anime']}\n"
+                f"✨ <b>RARITY:</b> {get_rarity_emoji(char['rarity'])} {char['rarity']}\n\n"
+                f"⏱️ <b>TIME TAKEN:</b> {t} seconds"
+            )
+            
+            keyboard = [[InlineKeyboardButton("See Harem", switch_inline_query_current_chat=f"collection.{update.effective_user.id}")]]
+            
+            await update.message.reply_photo(
+                photo=char['img_url'], 
+                caption=caption, 
+                parse_mode='HTML', 
+                reply_markup=InlineKeyboardMarkup(keyboard)
+            )
             del last_spawn[chat_id]
         else: await update.message.reply_text("❌ Wrong guess!")
     except: pass
