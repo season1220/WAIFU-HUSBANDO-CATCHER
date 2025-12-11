@@ -22,16 +22,6 @@ BOT_USERNAME = "seasonwaifuBot"
 OWNER_USERNAME = "DADY_JI"
 
 # --- ASSETS ---
-START_MEDIA_LIST = [
-    "https://upload.wikimedia.org/wikipedia/commons/9/9a/WrestleMania_38_stage_april_2nd_2022.jpg",
-    "https://telegra.ph/file/5e7300c32609050d26733.jpg",
-    "https://graph.org/file/9b0d2432bd337372295a6.mp4"
-]
-START_CAPTIONS_LIST = [
-    "𝐖𝐞𝐥𝐜𝐨𝐦𝐞 𝐭𝐨 𝐭𝐡𝐞 𝐄𝐥𝐢𝐭𝐞 𝐖𝐚𝐢𝐟𝐮 𝐒𝐲𝐬𝐭𝐞𝐦.",
-    "𝐓𝐡𝐞 𝐒𝐞𝐚𝐬𝐨𝐧 𝐊𝐢𝐧𝐠 𝐢𝐬 𝐡𝐞𝐫𝐞.",
-    "𝐂𝐨𝐥𝐥𝐞𝐜𝐭 𝐲𝐨𝐮𝐫 𝐝𝐫𝐞𝐚𝐦 𝐰𝐚𝐢𝐟𝐮𝐬 𝐧𝐨𝐰!"
-]
 PHOTO_URL = "https://telegra.ph/file/5e7300c32609050d26733.jpg"
 
 # --- 2. DATABASE ---
@@ -55,12 +45,7 @@ last_spawn = {}
 START_TIME = time.time()
 
 # --- HELPER FUNCTIONS ---
-RARITY_MAP = {1: "🥉 Low", 2: "🥈 Medium", 3: "🥇 High", 4: "🔮 Special Edition", 5: "💠 Elite Edition", 6: "🦄 Legendary", 7: "💌 Valentine", 8: "🧛🏻 Halloween", 9: "🥶 Winter", 10: "🍹 Summer", 11: "⚜️ Royal", 12: "💍 Luxury Edition", 13: "⛩ AMV"}
-RARITY_PRICE = {"Low": 200, "Medium": 500, "High": 1000, "Special Edition": 2000, "Elite Edition": 3000, "Legendary": 5000, "Valentine": 6000, "Halloween": 6000, "Winter": 6000, "Summer": 6000, "Royal": 10000, "Luxury": 20000, "AMV": 50000}
 
-# --- HELPER FUNCTIONS ---
-
-# 1. New Rarity Map (Jo tumne bheji)
 RARITY_MAP = {
     1: "🔸 Low",
     2: "🔷 Medium",
@@ -77,29 +62,25 @@ RARITY_MAP = {
     13: "⛩ Amv"
 }
 
-# 2. Updated Price Map (New Rarity ke hisab se keys match honi chahiye)
 RARITY_PRICE = {
-    "Low": 40, 
-    "Medium": 40, 
-    "High": 40, 
-    "Special Edition": 40, 
-    "Elite Edition": 40, 
-    "Legendary": 40, 
-    "Valentine": 40, 
-    "Halloween": 40, 
-    "Winter": 40, 
-    "Summer": 40, 
-    "Royal": 40, 
-    "Luxury": 40, 
-    "Amv": 500
+    "Low": 1, 
+    "Medium": 1, 
+    "High": 1, 
+    "Special Edition": 1, 
+    "Elite Edition": 1, 
+    "Legendary": 1, 
+    "Valentine": 1, 
+    "Halloween": 1, 
+    "Winter": 1, 
+    "Summer": 1, 
+    "Royal": 1, 
+    "Luxury": 1, 
+    "Amv": 2000
 }
 
-# 3. Updated Emoji Function (Taaki display sahi aaye)
 def get_rarity_emoji(rarity):
     if not rarity: return "✨"
     r = rarity.lower()
-    
-    # Tumhari new emojis list ke hisab se check:
     if "amv" in r: return "⛩"
     if "luxury" in r: return "💸"
     if "royal" in r: return "🎗"
@@ -113,8 +94,8 @@ def get_rarity_emoji(rarity):
     if "high" in r: return "♦️"
     if "medium" in r: return "🔷"
     if "low" in r: return "🔸"
-    
     return "✨"
+
 def get_readable_time(seconds: int) -> str:
     count = 0
     time_list = []
@@ -215,23 +196,18 @@ async def start(update: Update, context: CallbackContext):
                 await context.bot.send_message(chat_id=CHANNEL_ID, text=alert_msg, parse_mode='Markdown')
             except: pass
 
-        # --- 1. RANDOM AMV LOGIC ---
-        # Database se AMV (video) dhundenge
-        pipeline = [
-            {'$match': {'type': 'amv'}}, 
-            {'$sample': {'size': 1}}
-        ]
+        # --- RANDOM AMV LOGIC ---
+        pipeline = [{'$match': {'type': 'amv'}}, {'$sample': {'size': 1}}]
         amv_list = await col_chars.aggregate(pipeline).to_list(length=1)
-
-        # Agar AMV mili to wo use karenge, nahi to default photo
+        
         if amv_list:
             media_url = amv_list[0]['img_url']
             is_video = True
         else:
-            media_url = PHOTO_URL # Fallback photo
+            media_url = PHOTO_URL
             is_video = False
 
-        # --- 2. CAPTION & STYLE (EXACT FONT) ---
+        # --- CAPTION & STYLE ---
         uptime = get_readable_time(int(time.time() - START_TIME))
         ping = f"{random.choice([12, 19, 25, 31])}.{random.randint(10,99)} ms"
         
@@ -251,7 +227,7 @@ async def start(update: Update, context: CallbackContext):
 ➺ 𝙋𝙞𝙣𝙜: {ping}  
 ➺ 𝙐𝙥𝙩𝙞𝙢𝙚: {uptime}"""
 
-        # --- 3. BUTTONS ---
+        # --- BUTTONS ---
         keyboard = [
             [InlineKeyboardButton("Add to Your Group ↗", url=f"http://t.me/{BOT_USERNAME}?startgroup=new")],
             [InlineKeyboardButton("❍ SUPPORT ❍", url=f"https://t.me/{BOT_USERNAME}"), InlineKeyboardButton("❍ CHANNEL ❍", url=f"https://t.me/{BOT_USERNAME}")],
@@ -259,22 +235,14 @@ async def start(update: Update, context: CallbackContext):
             [InlineKeyboardButton(f"❍ OWNER ❍", url=f"https://t.me/{OWNER_USERNAME}")]
         ]
         
-        # --- 4. SEND MESSAGE ---
-        # reply_video use karne se video rectangular aur player controls ke sath aati hai
+        # --- SEND MESSAGE ---
         if is_video:
-            await update.message.reply_video(
-                video=media_url, 
-                caption=caption, 
-                parse_mode='HTML', 
-                reply_markup=InlineKeyboardMarkup(keyboard)
-            )
+            await update.message.reply_video(video=media_url, caption=caption, parse_mode='HTML', reply_markup=InlineKeyboardMarkup(keyboard))
         else:
-            await update.message.reply_photo(
-                photo=media_url, 
-                caption=caption, 
-                parse_mode='HTML', 
-                reply_markup=InlineKeyboardMarkup(keyboard)
-            )
+            await update.message.reply_photo(photo=media_url, caption=caption, parse_mode='HTML', reply_markup=InlineKeyboardMarkup(keyboard))
+            
+    except Exception as e: logger.error(f"Start Error: {e}")
+
 async def help_menu(update: Update, context: CallbackContext):
     msg = """
 <b>⚙️ COMMAND LIST</b>
@@ -293,14 +261,14 @@ async def help_menu(update: Update, context: CallbackContext):
 /check - Check Info
 /stats - Check User Count (Admin)
 """
-    # Agar button click se aaya hai
     if update.callback_query: 
         await update.callback_query.message.reply_text(msg, parse_mode='HTML')
         await update.callback_query.answer()
-    # Agar command (/help) se aaya hai
     else: 
         await update.message.reply_text(msg, parse_mode='HTML')
-    except Exception as e: logger.error(f"Start Error: {e}")
+
+# --- ADMIN COMMANDS ---
+
 async def stats(update: Update, context: CallbackContext):
     if update.effective_user.id != OWNER_ID: return
     count = await col_users.count_documents({})
@@ -574,7 +542,7 @@ async def profile(update: Update, context: CallbackContext):
     married = user.get('married_to', {}).get('name', 'None')
     clan = user.get('clan', 'None')
     
-    # --- UPDATED PROFILE PICTURE LOGIC ---
+    # --- PROFILE PICTURE LOGIC ---
     pic = PHOTO_URL
     is_amv = False
     
@@ -740,10 +708,9 @@ async def send_harem_page(update, context, user_id, user_name, page, mode):
         return
 
     # FIXED: Paginate by CHARACTERS, not Anime groups
-    # First, sort chars by Anime name
     filtered.sort(key=lambda x: x['anime'])
     
-    CHUNK = 15 # Shows 15 chars per page
+    CHUNK = 15
     total_pages = math.ceil(len(filtered) / CHUNK)
     if page < 0: page = 0
     if page >= total_pages: page = total_pages - 1
@@ -785,7 +752,6 @@ async def send_harem_page(update, context, user_id, user_name, page, mode):
         try: await update.callback_query.edit_message_caption(caption=msg, parse_mode='HTML', reply_markup=markup)
         except: pass
     else:
-        # Check if we need to send video or photo
         if amv:
              await update.message.reply_video(video=media_url, caption=msg, parse_mode='HTML', reply_markup=markup)
         else:
@@ -862,7 +828,6 @@ async def spawn_character(update: Update, context: CallbackContext):
         last_spawn[update.effective_chat.id] = {'char': character, 'time': time.time()}
         emoji = get_rarity_emoji(character['rarity'])
         
-        # ⛩ Symbol for AMV
         symbol = "⛩" if character.get('type') == 'amv' else "✨"
         
         caption = f"{symbol} A {emoji} <b>{character['rarity']}</b> Character Appears! {symbol}\n🔎 Use /guess to claim!\n💫 Hurry!"
@@ -878,13 +843,11 @@ async def guess(update: Update, context: CallbackContext):
         chat_id = update.effective_chat.id
         if chat_id not in last_spawn: return 
         if not context.args: return
-        
         guess_w = " ".join(context.args).lower()
         real_n = last_spawn[chat_id]['char']['name'].lower()
         
-        # Check matching
         if guess_w == real_n or any(p == guess_w for p in real_n.split()):
-            # --- DATABASE UPDATE LOGIC START ---
+            # --- DATABASE UPDATE ---
             user_id = update.effective_user.id
             user = await col_users.find_one({'id': user_id})
             if not user:
@@ -896,9 +859,8 @@ async def guess(update: Update, context: CallbackContext):
             
             await col_users.update_one({'id': update.effective_user.id}, {'$push': {'characters': char}, '$inc': {'balance': bal}, '$set': {'name': update.effective_user.first_name}}, upsert=True)
             updated_user = await col_users.find_one({'id': update.effective_user.id})
-            # --- DATABASE UPDATE LOGIC END ---
-
-            # --- MESSAGE 1: COINS & BALANCE (DEVIL STYLE) ---
+            
+            # --- MESSAGE 1: DEVIL THEME COINS ---
             msg1 = (
                 f"😈  <b>D E V I L ’ S   G U E S S   R E C O R D</b>  😈\n\n"
                 f"🔥 Congratulations, mortal…\n"
@@ -907,11 +869,8 @@ async def guess(update: Update, context: CallbackContext):
             )
             await update.message.reply_text(msg1, parse_mode='HTML')
 
-            # --- MESSAGE 2: CHARACTER INFO (DEVIL STYLE) ---
+            # --- MESSAGE 2: DEVIL THEME CHARACTER ---
             user_link = f"<a href='tg://user?id={user_id}'>{update.effective_user.first_name}</a>"
-            
-            # Formatting the Rarity logic to handle Emoji properly if needed, 
-            # or just use the string from DB
             rarity_display = char['rarity'] 
 
             caption = (
@@ -924,18 +883,12 @@ async def guess(update: Update, context: CallbackContext):
                 f"─────────────⛧─────────────"
             )
             
-            # Fancy Button Text
             btn = [[InlineKeyboardButton("👑 𝗦𝗲𝗲 𝗛𝗮𝗿𝗲𝗺", switch_inline_query_current_chat=f"collection.{user_id}")]]
             
             await update.message.reply_text(caption, parse_mode='HTML', reply_markup=InlineKeyboardMarkup(btn))
-            
-            # Clear spawn
             del last_spawn[chat_id]
-            
-        else:
-            await update.message.reply_text("❌ Wrong guess!")
-    except Exception as e:
-        logger.error(f"Guess Error: {e}")
+        else: await update.message.reply_text("❌ Wrong guess!")
+    except Exception as e: logger.error(f"Guess Error: {e}")
 
 # --- SERVER ---
 async def web_server():
