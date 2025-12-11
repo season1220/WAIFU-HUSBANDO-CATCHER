@@ -58,24 +58,63 @@ START_TIME = time.time()
 RARITY_MAP = {1: "🥉 Low", 2: "🥈 Medium", 3: "🥇 High", 4: "🔮 Special Edition", 5: "💠 Elite Edition", 6: "🦄 Legendary", 7: "💌 Valentine", 8: "🧛🏻 Halloween", 9: "🥶 Winter", 10: "🍹 Summer", 11: "⚜️ Royal", 12: "💍 Luxury Edition", 13: "⛩ AMV"}
 RARITY_PRICE = {"Low": 200, "Medium": 500, "High": 1000, "Special Edition": 2000, "Elite Edition": 3000, "Legendary": 5000, "Valentine": 6000, "Halloween": 6000, "Winter": 6000, "Summer": 6000, "Royal": 10000, "Luxury": 20000, "AMV": 50000}
 
+# --- HELPER FUNCTIONS ---
+
+# 1. New Rarity Map (Jo tumne bheji)
+RARITY_MAP = {
+    1: "🔸 Low",
+    2: "🔷 Medium",
+    3: "♦️ High",
+    4: "🔮 Special Edition",
+    5: "💮 Elite Edition",
+    6: "👑 Legendary",
+    7: "💝 Valentine",
+    8: "🎃 Halloween",
+    9: "❄️ Winter",
+    10: "🏜 Summer",
+    11: "🎗 Royal",
+    12: "💸 Luxury",
+    13: "⛩ Amv"
+}
+
+# 2. Updated Price Map (New Rarity ke hisab se keys match honi chahiye)
+RARITY_PRICE = {
+    "Low": 200, 
+    "Medium": 500, 
+    "High": 1000, 
+    "Special Edition": 2000, 
+    "Elite Edition": 3000, 
+    "Legendary": 5000, 
+    "Valentine": 6000, 
+    "Halloween": 6000, 
+    "Winter": 6000, 
+    "Summer": 6000, 
+    "Royal": 10000, 
+    "Luxury": 20000, 
+    "Amv": 50000
+}
+
+# 3. Updated Emoji Function (Taaki display sahi aaye)
 def get_rarity_emoji(rarity):
     if not rarity: return "✨"
     r = rarity.lower()
+    
+    # Tumhari new emojis list ke hisab se check:
     if "amv" in r: return "⛩"
     if "luxury" in r: return "💸"
-    if "royal" in r: return "⚜️"
-    if "summer" in r: return "🍹"
-    if "winter" in r: return "🥶"
+    if "royal" in r: return "🎗"
+    if "summer" in r: return "🏜"
+    if "winter" in r: return "❄️"
     if "halloween" in r: return "🎃"
-    if "valentine" in r: return "💌"
-    if "legendary" in r: return "🦄"
-    if "elite" in r: return "💠"
+    if "valentine" in r: return "💝"
+    if "legendary" in r: return "👑"
+    if "elite" in r: return "💮"
     if "special" in r: return "🔮"
-    if "high" in r: return "🥇"
-    if "medium" in r: return "🥈"
-    if "low" in r: return "🥉"
+    if "high" in r: return "♦️"
+    if "medium" in r: return "🔷"
+    if "low" in r: return "🔸"
+    
     return "✨"
-
 def get_readable_time(seconds: int) -> str:
     count = 0
     time_list = []
