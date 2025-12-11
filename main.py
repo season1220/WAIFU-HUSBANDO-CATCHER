@@ -235,9 +235,9 @@ async def start(update: Update, context: CallbackContext):
             [InlineKeyboardButton(f"❍ OWNER ❍", url=f"https://t.me/{OWNER_USERNAME}")]
         ]
         
-        # --- SEND MESSAGE ---
+        # --- SEND MESSAGE (FORCED VIDEO) ---
         if is_video:
-            await update.message.reply_video(video=media_url, caption=caption, parse_mode='HTML', reply_markup=InlineKeyboardMarkup(keyboard))
+            await update.message.reply_video(video=media_url, caption=caption, parse_mode='HTML', reply_markup=InlineKeyboardMarkup(keyboard), supports_streaming=True)
         else:
             await update.message.reply_photo(photo=media_url, caption=caption, parse_mode='HTML', reply_markup=InlineKeyboardMarkup(keyboard))
             
@@ -281,6 +281,7 @@ async def rupload(update: Update, context: CallbackContext):
         await update.message.reply_text("⚠️ **Error:** Reply to Photo/Video!")
         return
 
+    # Updated: Animation (GIF) ko bhi AMV treat karenge taaki player video wala aaye
     file_id, c_type = (msg.photo[-1].file_id, "img") if msg.photo else (msg.video.file_id, "amv") if msg.video else (msg.animation.file_id, "amv") if msg.animation else (None, None)
     if not file_id: 
         await update.message.reply_text("❌ Media not found.")
@@ -314,7 +315,7 @@ async def rupload(update: Update, context: CallbackContext):
         
         await update.message.reply_text(f"✅ **Uploaded!**\n🆔 `{char_id}`\n✨ {rarity}")
         caption = f"Character Name: {name}\nAnime Name: {anime}\nRarity: {rarity}\nID: {char_id}\nAdded by <a href='tg://user?id={update.effective_user.id}'>{update.effective_user.first_name}</a>"
-        if c_type == "amv": await context.bot.send_video(chat_id=CHANNEL_ID, video=file_id, caption=caption, parse_mode='HTML')
+        if c_type == "amv": await context.bot.send_video(chat_id=CHANNEL_ID, video=file_id, caption=caption, parse_mode='HTML', supports_streaming=True)
         else: await context.bot.send_photo(chat_id=CHANNEL_ID, photo=file_id, caption=caption, parse_mode='HTML')
     except Exception as e: await update.message.reply_text(f"Error: {e}")
 
@@ -520,7 +521,7 @@ async def check(update: Update, context: CallbackContext):
     emoji = get_rarity_emoji(char['rarity'])
     caption = f"🌟 **Info**\n🆔 {char['id']}\n📛 {char['name']}\n💎 {char['rarity']}"
     btn = [[InlineKeyboardButton("Who Have It", callback_data=f"who_{char['id']}")]]
-    if char.get('type') == 'amv': await update.message.reply_video(video=char['img_url'], caption=caption, parse_mode='Markdown', reply_markup=InlineKeyboardMarkup(btn))
+    if char.get('type') == 'amv': await update.message.reply_video(video=char['img_url'], caption=caption, parse_mode='Markdown', reply_markup=InlineKeyboardMarkup(btn), supports_streaming=True)
     else: await update.message.reply_photo(photo=char['img_url'], caption=caption, parse_mode='Markdown', reply_markup=InlineKeyboardMarkup(btn))
 
 async def who_have_it(update: Update, context: CallbackContext):
@@ -556,7 +557,7 @@ async def profile(update: Update, context: CallbackContext):
     msg = f"👤 <b>PROFILE</b>\n👑 Name: {name}\n💰 Gold: {bal}\n📚 Chars: {count}\n💍 Spouse: {married}\n🏰 Clan: {clan}"
     
     if is_amv:
-        await update.message.reply_video(video=pic, caption=msg, parse_mode='HTML')
+        await update.message.reply_video(video=pic, caption=msg, parse_mode='HTML', supports_streaming=True)
     else:
         await update.message.reply_photo(photo=pic, caption=msg, parse_mode='HTML')
 
@@ -753,7 +754,7 @@ async def send_harem_page(update, context, user_id, user_name, page, mode):
         except: pass
     else:
         if amv:
-             await update.message.reply_video(video=media_url, caption=msg, parse_mode='HTML', reply_markup=markup)
+             await update.message.reply_video(video=media_url, caption=msg, parse_mode='HTML', reply_markup=markup, supports_streaming=True)
         else:
              await update.message.reply_photo(photo=media_url, caption=msg, parse_mode='HTML', reply_markup=markup)
 
@@ -833,7 +834,8 @@ async def spawn_character(update: Update, context: CallbackContext):
         caption = f"{symbol} A {emoji} <b>{character['rarity']}</b> Character Appears! {symbol}\n🔎 Use /guess to claim!\n💫 Hurry!"
         
         if character.get('type') == 'amv':
-             await context.bot.send_video(chat_id=update.effective_chat.id, video=character['img_url'], caption=caption, parse_mode='HTML')
+             # FORCE VIDEO PLAYER
+             await context.bot.send_video(chat_id=update.effective_chat.id, video=character['img_url'], caption=caption, parse_mode='HTML', supports_streaming=True)
         else:
              await context.bot.send_photo(chat_id=update.effective_chat.id, photo=character['img_url'], caption=caption, parse_mode='HTML')
     except Exception as e: logger.error(f"Spawn Error: {e}")
