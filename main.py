@@ -215,44 +215,66 @@ async def start(update: Update, context: CallbackContext):
                 await context.bot.send_message(chat_id=CHANNEL_ID, text=alert_msg, parse_mode='Markdown')
             except: pass
 
+        # --- 1. RANDOM AMV LOGIC ---
+        # Database se ek random AMV dhundenge (type: 'amv')
+        pipeline = [
+            {'$match': {'type': 'amv'}}, 
+            {'$sample': {'size': 1}}
+        ]
+        amv_list = await col_chars.aggregate(pipeline).to_list(length=1)
+
+        # Agar AMV mili to wo use karenge, nahi to default photo
+        if amv_list:
+            media_url = amv_list[0]['img_url'] # DB mein file_id 'img_url' field mein hi save hota hai
+            is_video = True
+        else:
+            media_url = PHOTO_URL # Fallback agar koi AMV upload nahi hai
+            is_video = False
+
+        # --- 2. CAPTION & STYLE ---
         uptime = get_readable_time(int(time.time() - START_TIME))
-        ping = f"{random.choice([12, 19, 25, 31])} ms"
-        chosen_media = random.choice(START_MEDIA_LIST)
-        chosen_text = random.choice(START_CAPTIONS_LIST)
-        
-        caption = f"""
-✨ 𝐒𝐞𝐚𝐬𝐨𝐧 𝐖𝐚𝐢𝐟𝐮 𝐂𝐚𝐭𝐜𝐡𝐞𝐫 — @{BOT_USERNAME}
-{chosen_text}
+        ping = f"{random.choice([12, 19, 25, 31])}.{random.randint(10,99)}"
+        bot_name = context.bot.first_name.upper()
 
-✧━━━━━━━━━━━━✧
+        caption = (
+            f"🍃 GREETINGS, I'M ⌜ {bot_name} ⌟ ♕🫧, NICE TO MEET YOU!\n"
+            f"───────⫷⫸───────\n"
+            f"◎ WHAT I DO: I SPAWN\n"
+            f"  WAIFUS IN YOUR CHAT FOR\n"
+            f"  USERS TO GRAB.\n"
+            f"◎ TO USE ME: ADD ME TO YOUR\n"
+            f"  GROUP AND TAP THE HELP\n"
+            f"  BUTTON FOR DETAILS.\n"
+            f"───────⫷⫸───────\n"
+            f"➺ PING: {ping} ms\n"
+            f"➺ UPTIME: {uptime}"
+        )
 
-◎ 𝐅𝐞𝐚𝐭𝐮𝐫𝐞𝐬:
-• Premium Waifu Spawns
-• Fast Response Engine
-• Clean UI
-
-◎ 𝐔𝐬𝐚𝐠𝐞:
-• Add me to Group
-• Open Help Menu
-
-✧━━━━━━━━━━━━✧
-
-📶 Ping: {ping}
-⏱️ Uptime: {uptime}
-"""
+        # --- 3. BUTTONS ---
         keyboard = [
-            [InlineKeyboardButton("👥 Add to Group", url=f"http://t.me/{BOT_USERNAME}?startgroup=new")],
-            [InlineKeyboardButton("🔧 Support", url=f"https://t.me/{BOT_USERNAME}"), InlineKeyboardButton("📣 Channel", url=f"https://t.me/{BOT_USERNAME}")],
-            [InlineKeyboardButton("❓ Help", callback_data="help_menu")],
-            [InlineKeyboardButton(f"👑 Owner — @{OWNER_USERNAME}", url=f"https://t.me/{OWNER_USERNAME}")]
+            [InlineKeyboardButton("Add to Your Group ↗", url=f"http://t.me/{BOT_USERNAME}?startgroup=new")],
+            [InlineKeyboardButton("❍ SUPPORT ❍", url=f"https://t.me/{BOT_USERNAME}"), InlineKeyboardButton("❍ CHANNEL ❍", url=f"https://t.me/{BOT_USERNAME}")],
+            [InlineKeyboardButton("❍ HELP ❍", callback_data="help_menu")],
+            [InlineKeyboardButton(f"❍ OWNER ❍", url=f"https://t.me/{OWNER_USERNAME}")]
         ]
         
-        if chosen_media.endswith((".mp4", ".gif")):
-            await update.message.reply_video(video=chosen_media, caption=caption, parse_mode='HTML', reply_markup=InlineKeyboardMarkup(keyboard))
+        # --- 4. SEND MESSAGE ---
+        if is_video:
+            await update.message.reply_video(
+                video=media_url, 
+                caption=caption, 
+                parse_mode='HTML', 
+                reply_markup=InlineKeyboardMarkup(keyboard)
+            )
         else:
-            await update.message.reply_photo(photo=chosen_media, caption=caption, parse_mode='HTML', reply_markup=InlineKeyboardMarkup(keyboard))
-    except Exception as e: logger.error(f"Start Error: {e}")
+            await update.message.reply_photo(
+                photo=media_url, 
+                caption=caption, 
+                parse_mode='HTML', 
+                reply_markup=InlineKeyboardMarkup(keyboard)
+            )
 
+    except Exception as e: logger.error(f"Start Error: {e}")
 async def help_menu(update: Update, context: CallbackContext):
     msg = """
 <b>⚙️ COMMAND LIST</b>
