@@ -11,9 +11,10 @@ from telegram.ext import Application, CommandHandler, MessageHandler, filters, C
 from motor.motor_asyncio import AsyncIOMotorClient
 from pymongo import ReturnDocument
 from aiohttp import web
+from telegram.error import BadRequest
 
 # --- 1. CONFIGURATION ---
-TOKEN = "8578752843:AAFFd6BRi5_Q9Vm2hiqgkiAvFq9WTTY05Bg"
+TOKEN = "8578752843:AAFFlv4ySVRi0wyaqvhuetZYfAIE8KwM7bw"
 MONGO_URL = "mongodb+srv://seasonking:season_123@cluster0.e5zbzap.mongodb.net/?appName=Cluster0"
 OWNER_ID = 7164618867
 CHANNEL_ID = -1003352372209 
@@ -69,7 +70,7 @@ RARITY_VALUE = {
     "Royal": 11, "Luxury": 12, "Amv": 13
 }
 
-# --- NEW PRICES (Low = 500) ---
+# --- SHOP PRICES ---
 SHOP_PRICES = {
     "Low": 500,
     "Medium": 1000,
@@ -240,7 +241,15 @@ async def start(update: Update, context: CallbackContext):
         ]
         
         if is_video:
-            await update.message.reply_video(video=media_url, caption=caption, parse_mode='HTML', reply_markup=InlineKeyboardMarkup(keyboard), supports_streaming=True, width=1280, height=720)
+            await update.message.reply_video(
+                video=media_url, 
+                caption=caption, 
+                parse_mode='HTML', 
+                reply_markup=InlineKeyboardMarkup(keyboard), 
+                supports_streaming=True,
+                width=1280, 
+                height=720
+            )
         else:
             await update.message.reply_photo(photo=media_url, caption=caption, parse_mode='HTML', reply_markup=InlineKeyboardMarkup(keyboard))
             
@@ -270,7 +279,7 @@ async def help_menu(update: Update, context: CallbackContext):
     else: 
         await update.message.reply_text(msg, parse_mode='HTML')
 
-# --- NEW SHOP SYSTEM (GRID EMOJIS ONLY) ---
+# --- NEW SHOP SYSTEM (FIXED) ---
 
 async def shop(update: Update, context: CallbackContext):
     user = update.effective_user
@@ -283,12 +292,15 @@ async def shop(update: Update, context: CallbackContext):
     ]
     
     if update.callback_query:
-        try: await update.callback_query.edit_message_caption(caption=msg, parse_mode='HTML', reply_markup=InlineKeyboardMarkup(keyboard))
-        except: await context.bot.send_photo(chat_id=user.id, photo=PHOTO_URL, caption=msg, parse_mode='HTML', reply_markup=InlineKeyboardMarkup(keyboard))
+        try: 
+            await update.callback_query.edit_message_caption(caption=msg, parse_mode='HTML', reply_markup=InlineKeyboardMarkup(keyboard))
+        except (BadRequest, Exception): 
+            # If caption editing fails (e.g. text message), send new photo
+            await context.bot.send_photo(chat_id=user.id, photo=PHOTO_URL, caption=msg, parse_mode='HTML', reply_markup=InlineKeyboardMarkup(keyboard))
     else:
         try:
             await update.message.reply_photo(photo=PHOTO_URL, caption=msg, parse_mode='HTML', reply_markup=InlineKeyboardMarkup(keyboard))
-        except Exception as e:
+        except Exception:
             await update.message.reply_text(msg, parse_mode='HTML', reply_markup=InlineKeyboardMarkup(keyboard))
 
 async def shop_callback(update: Update, context: CallbackContext):
@@ -314,10 +326,13 @@ async def shop_callback(update: Update, context: CallbackContext):
             [InlineKeyboardButton("Contact to Buy", url=f"https://t.me/{OWNER_USERNAME}")],
             [InlineKeyboardButton("Back to Shop", callback_data="shop_main")]
         ]
-        await query.edit_message_caption(caption=msg, parse_mode='HTML', reply_markup=InlineKeyboardMarkup(keyboard))
+        try:
+            await query.edit_message_caption(caption=msg, parse_mode='HTML', reply_markup=InlineKeyboardMarkup(keyboard))
+        except BadRequest:
+             # Fallback for text messages
+             await query.edit_message_text(text=msg, parse_mode='HTML', reply_markup=InlineKeyboardMarkup(keyboard))
         
     elif data == "shop_market":
-        # GRID LAYOUT (Only Emojis)
         msg = f"🌟 <b>Welcome to the Rarity Shop!</b> 🌟\n\nHere, you can spin for characters of different rarities. Each rarity has its own unique characters and spin cost.\n\nYour Crystals: 🔮 {crystals}\n\nPlease choose the rarity you want to spin for:"
         
         r1 = [
@@ -342,14 +357,18 @@ async def shop_callback(update: Update, context: CallbackContext):
         ]
         r5 = [
             InlineKeyboardButton("⛩", callback_data=f"buy_char_Amv_{SHOP_PRICES['Amv']}"),
-            InlineKeyboardButton("🔄", callback_data="shop_refresh") # Refresh Icon
+            InlineKeyboardButton("🔄", callback_data="shop_refresh")
         ]
         r6 = [
             InlineKeyboardButton("Back to Menu", callback_data="shop_main")
         ]
         
         keyboard = [r1, r2, r3, r4, r5, r6]
-        await query.edit_message_caption(caption=msg, parse_mode='HTML', reply_markup=InlineKeyboardMarkup(keyboard))
+        try:
+            await query.edit_message_caption(caption=msg, parse_mode='HTML', reply_markup=InlineKeyboardMarkup(keyboard))
+        except BadRequest:
+             # Fallback if image load failed previously
+             await query.edit_message_text(text=msg, parse_mode='HTML', reply_markup=InlineKeyboardMarkup(keyboard))
 
     elif data.startswith("buy_char_"):
         _, _, rarity, price = data.split("_")
