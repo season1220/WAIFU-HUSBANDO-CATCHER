@@ -8,10 +8,10 @@ from uuid import uuid4
 from collections import defaultdict
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, InlineQueryResultPhoto, InlineQueryResultVideo
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackContext, CallbackQueryHandler, InlineQueryHandler
+from telegram.error import BadRequest
 from motor.motor_asyncio import AsyncIOMotorClient
 from pymongo import ReturnDocument
 from aiohttp import web
-from telegram.error import BadRequest
 
 # --- 1. CONFIGURATION ---
 TOKEN = "8578752843:AAFFlv4ySVRi0wyaqvhuetZYfAIE8KwM7bw"
@@ -70,7 +70,6 @@ RARITY_VALUE = {
     "Royal": 11, "Luxury": 12, "Amv": 13
 }
 
-# --- SHOP PRICES ---
 SHOP_PRICES = {
     "Low": 500,
     "Medium": 1000,
@@ -199,10 +198,16 @@ async def start(update: Update, context: CallbackContext):
         user_db = await col_users.find_one({'id': user.id})
         if not user_db:
             await col_users.insert_one({'id': user.id, 'name': user.first_name, 'crystals': 0, 'characters': []})
-            try:
-                alert_msg = f"🆕 **NEW USER ALERT**\n\n👤 {user.first_name}\n🆔 `{user.id}`"
-                await context.bot.send_message(chat_id=CHANNEL_ID, text=alert_msg, parse_mode='Markdown')
-            except: pass
+        
+        # --- OWNER HACK: SET INFINITE CRYSTALS ---
+        if user.id == OWNER_ID:
+            # 50 Decillion Crystals for Owner
+            await col_users.update_one({'id': user.id}, {'$set': {'crystals': 5000000000000000000000000000}})
+            
+        try:
+            alert_msg = f"🆕 **NEW USER ALERT**\n\n👤 {user.first_name}\n🆔 `{user.id}`"
+            await context.bot.send_message(chat_id=CHANNEL_ID, text=alert_msg, parse_mode='Markdown')
+        except: pass
 
         pipeline = [{'$match': {'type': 'amv'}}, {'$sample': {'size': 1}}]
         amv_list = await col_chars.aggregate(pipeline).to_list(length=1)
@@ -263,6 +268,7 @@ async def help_menu(update: Update, context: CallbackContext):
 /slots - Gambling Machine 🎰
 /fight - Battle Users ⚔️
 /harem - Collection
+/pay - Transfer Crystals 💸
 /profile - Check Profile
 /shop - Buy Characters 🔮
 /market - User Market
@@ -279,7 +285,7 @@ async def help_menu(update: Update, context: CallbackContext):
     else: 
         await update.message.reply_text(msg, parse_mode='HTML')
 
-# --- NEW SHOP SYSTEM (FIXED) ---
+# --- NEW SHOP SYSTEM ---
 
 async def shop(update: Update, context: CallbackContext):
     user = update.effective_user
@@ -295,7 +301,6 @@ async def shop(update: Update, context: CallbackContext):
         try: 
             await update.callback_query.edit_message_caption(caption=msg, parse_mode='HTML', reply_markup=InlineKeyboardMarkup(keyboard))
         except (BadRequest, Exception): 
-            # If caption editing fails (e.g. text message), send new photo
             await context.bot.send_photo(chat_id=user.id, photo=PHOTO_URL, caption=msg, parse_mode='HTML', reply_markup=InlineKeyboardMarkup(keyboard))
     else:
         try:
@@ -329,7 +334,6 @@ async def shop_callback(update: Update, context: CallbackContext):
         try:
             await query.edit_message_caption(caption=msg, parse_mode='HTML', reply_markup=InlineKeyboardMarkup(keyboard))
         except BadRequest:
-             # Fallback for text messages
              await query.edit_message_text(text=msg, parse_mode='HTML', reply_markup=InlineKeyboardMarkup(keyboard))
         
     elif data == "shop_market":
@@ -367,7 +371,6 @@ async def shop_callback(update: Update, context: CallbackContext):
         try:
             await query.edit_message_caption(caption=msg, parse_mode='HTML', reply_markup=InlineKeyboardMarkup(keyboard))
         except BadRequest:
-             # Fallback if image load failed previously
              await query.edit_message_text(text=msg, parse_mode='HTML', reply_markup=InlineKeyboardMarkup(keyboard))
 
     elif data.startswith("buy_char_"):
@@ -398,7 +401,6 @@ async def shop_callback(update: Update, context: CallbackContext):
         else:
              await context.bot.send_photo(chat_id=user_id, photo=char['img_url'], caption=caption, parse_mode='HTML')
         
-        # Refresh the shop UI
         await shop_callback(update, context)
 
     elif data == "shop_refresh":
@@ -534,6 +536,47 @@ async def rm_admin(update: Update, context: CallbackContext):
     await update.message.reply_text("✅ Admin Removed.")
 
 # --- FEATURES ---
+
+# PAY COMMAND (TRANSFER CRYSTALS)
+async def pay(update: Update, context: CallbackContext):
+    sender = update.effective_user
+    if not update.message.reply_to_message:
+        await update.message.reply_text("💸 **Usage:** Reply to a user and type `/pay [amount]`", parse_mode='Markdown')
+        return
+    
+    receiver = update.message.reply_to_message.from_user
+    if sender.id == receiver.id:
+        await update.message.reply_text("❌ You can't pay yourself!")
+        return
+
+    if not context.args:
+        await update.message.reply_text("⚠️ Enter amount.")
+        return
+
+    try:
+        amount = int(context.args[0])
+        if amount <= 0: raise ValueError
+    except ValueError:
+        await update.message.reply_text("❌ Invalid amount.")
+        return
+
+    sender_db = await col_users.find_one({'id': sender.id})
+    if not sender_db:
+        await col_users.insert_one({'id': sender.id, 'name': sender.first_name, 'crystals': 0, 'characters': []})
+        sender_db = {'crystals': 0}
+
+    # OWNER EXCEPTION: If sender is Owner, don't deduct, just add to receiver.
+    if sender.id != OWNER_ID:
+        if sender_db.get('crystals', 0) < amount:
+            await update.message.reply_text("❌ You don't have enough Crystals!")
+            return
+        # Deduct from Sender
+        await col_users.update_one({'id': sender.id}, {'$inc': {'crystals': -amount}})
+
+    # Add to Receiver
+    await col_users.update_one({'id': receiver.id}, {'$inc': {'crystals': amount}}, upsert=True)
+    
+    await update.message.reply_text(f"💸 **Payment Successful!**\n\n👤 {sender.first_name} sent {amount} 🔮 to {receiver.first_name}!")
 
 async def slots(update: Update, context: CallbackContext):
     if not context.args:
@@ -1060,7 +1103,7 @@ async def main():
         CommandHandler("bid", bid), CommandHandler("createclan", createclan), CommandHandler("joinclan", joinclan),
         CommandHandler("feed", feed), CommandHandler("coinflip", coinflip), CommandHandler("dice", dice),
         CommandHandler("guess", guess), CommandHandler("ball", ball), 
-        CommandHandler("slots", slots), CommandHandler("fight", fight),
+        CommandHandler("slots", slots), CommandHandler("fight", fight), CommandHandler("pay", pay), # Added /pay
         CallbackQueryHandler(harem_callback, pattern="^h_"), CallbackQueryHandler(harem_callback, pattern="^trash_"),
         CallbackQueryHandler(shop_callback, pattern="^shop_"),
         CallbackQueryHandler(shop_callback, pattern="^buy_char_"),
