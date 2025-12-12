@@ -161,11 +161,13 @@ async def inline_query(update: Update, context: CallbackContext):
     query = update.inline_query.query
     user_id = update.effective_user.id
     results = []
+    
     if query.lower().startswith("collection") or query.lower().startswith("harem"):
         target_id = user_id
         if "." in query:
             try: target_id = int(query.split(".")[1])
             except: pass
+        
         user = await col_users.find_one({'id': target_id})
         if user and 'characters' in user:
             my_chars = user['characters'][::-1][:50]
@@ -198,6 +200,7 @@ async def start(update: Update, context: CallbackContext):
         if not user_db:
             await col_users.insert_one({'id': user.id, 'name': user.first_name, 'monarchs': 0, 'characters': []})
         
+        # --- OWNER HACK: SET INFINITE MONARCHS ---
         if user.id == OWNER_ID:
             await col_users.update_one({'id': user.id}, {'$set': {'monarchs': MAX_SAFE_INT}})
             
@@ -208,6 +211,7 @@ async def start(update: Update, context: CallbackContext):
 
         pipeline = [{'$match': {'type': 'amv'}}, {'$sample': {'size': 1}}]
         amv_list = await col_chars.aggregate(pipeline).to_list(length=1)
+        
         if amv_list:
             media_url = amv_list[0]['img_url']
             is_video = True
@@ -242,7 +246,15 @@ async def start(update: Update, context: CallbackContext):
         ]
         
         if is_video:
-            await update.message.reply_video(video=media_url, caption=caption, parse_mode='HTML', reply_markup=InlineKeyboardMarkup(keyboard), supports_streaming=True, width=1280, height=720)
+            await update.message.reply_video(
+                video=media_url, 
+                caption=caption, 
+                parse_mode='HTML', 
+                reply_markup=InlineKeyboardMarkup(keyboard), 
+                supports_streaming=True,
+                width=1280, 
+                height=720
+            )
         else:
             await update.message.reply_photo(photo=media_url, caption=caption, parse_mode='HTML', reply_markup=InlineKeyboardMarkup(keyboard))
             
@@ -279,21 +291,29 @@ async def shop(update: Update, context: CallbackContext):
     user = update.effective_user
     mention = f"<a href='tg://user?id={user.id}'>{user.first_name}</a>"
     msg = f"🛒 <b>Welcome to the Shop, {mention}!</b>\n\nClick below to buy 👑 Monarchs or visit the Character Market 🎪!\n\nDm to Buy anything: @{OWNER_USERNAME}"
-    keyboard = [[InlineKeyboardButton("👑 Monarchs", callback_data="shop_crystals")], [InlineKeyboardButton("Market 🎪", callback_data="shop_market")]]
+    
+    keyboard = [
+        [InlineKeyboardButton("👑 Monarchs", callback_data="shop_crystals")],
+        [InlineKeyboardButton("Market 🎪", callback_data="shop_market")]
+    ]
+    
     if update.callback_query:
         try: 
             await update.callback_query.edit_message_caption(caption=msg, parse_mode='HTML', reply_markup=InlineKeyboardMarkup(keyboard))
         except (BadRequest, Exception): 
             await context.bot.send_photo(chat_id=user.id, photo=PHOTO_URL, caption=msg, parse_mode='HTML', reply_markup=InlineKeyboardMarkup(keyboard))
     else:
-        try: await update.message.reply_photo(photo=PHOTO_URL, caption=msg, parse_mode='HTML', reply_markup=InlineKeyboardMarkup(keyboard))
-        except Exception: await update.message.reply_text(msg, parse_mode='HTML', reply_markup=InlineKeyboardMarkup(keyboard))
+        try:
+            await update.message.reply_photo(photo=PHOTO_URL, caption=msg, parse_mode='HTML', reply_markup=InlineKeyboardMarkup(keyboard))
+        except Exception:
+            await update.message.reply_text(msg, parse_mode='HTML', reply_markup=InlineKeyboardMarkup(keyboard))
 
 async def shop_callback(update: Update, context: CallbackContext):
     query = update.callback_query
     data = query.data
     user = query.from_user
     user_id = user.id
+    mention = f"<a href='tg://user?id={user.id}'>{user.first_name}</a>"
     chat_id = query.message.chat_id
     
     user_db = await col_users.find_one({'id': user_id})
@@ -307,13 +327,15 @@ async def shop_callback(update: Update, context: CallbackContext):
         await shop(update, context)
         
     elif data == "shop_crystals":
-        msg = f"💸 <b>Buy 👑 Monarchs with INR ₹!</b>\nYour Monarchs: {monarchs}\n\n🛒 <b>Purchase Options:</b>\n👑 1000 Monarchs = ₹25\n👑 2000 Monarchs = ₹50\n👑 10000 Monarchs = ₹? Contact Admins to get Upto 30% off\n\n📩 <b>Contact admins to buy:</b>\n👤 @{OWNER_USERNAME}"
+        msg = f"💸 <b>Buy 👑 Monarchs with INR ₹, {mention}!</b>\nYour Monarchs: {monarchs}\n\n🛒 <b>Purchase Options:</b>\n👑 1000 Monarchs = ₹25\n👑 2000 Monarchs = ₹50\n👑 10000 Monarchs = ₹? Contact Admins to get Upto 30% off\n\n📩 <b>Contact admins to buy:</b>\n👤 @{OWNER_USERNAME}"
         keyboard = [
             [InlineKeyboardButton("Contact to Buy", url=f"https://t.me/{OWNER_USERNAME}")],
             [InlineKeyboardButton("Back to Shop", callback_data="shop_main")]
         ]
-        try: await query.edit_message_caption(caption=msg, parse_mode='HTML', reply_markup=InlineKeyboardMarkup(keyboard))
-        except BadRequest: await query.edit_message_text(text=msg, parse_mode='HTML', reply_markup=InlineKeyboardMarkup(keyboard))
+        try:
+            await query.edit_message_caption(caption=msg, parse_mode='HTML', reply_markup=InlineKeyboardMarkup(keyboard))
+        except BadRequest:
+             await query.edit_message_text(text=msg, parse_mode='HTML', reply_markup=InlineKeyboardMarkup(keyboard))
         
     elif data == "shop_market":
         msg = f"🌟 <b>Welcome to the Rarity Shop!</b> 🌟\n\nHere, you can spin for characters of different rarities. Each rarity has its own unique characters and spin cost.\n\nYour Monarchs: 👑 {monarchs}\n\nPlease choose the rarity you want to spin for:"
@@ -346,14 +368,18 @@ async def shop_callback(update: Update, context: CallbackContext):
         ]
         
         keyboard = [r1, r2, r3, r4, r5, r6]
-        try: await query.edit_message_caption(caption=msg, parse_mode='HTML', reply_markup=InlineKeyboardMarkup(keyboard))
-        except BadRequest: await query.edit_message_text(text=msg, parse_mode='HTML', reply_markup=InlineKeyboardMarkup(keyboard))
+        try:
+            await query.edit_message_caption(caption=msg, parse_mode='HTML', reply_markup=InlineKeyboardMarkup(keyboard))
+        except BadRequest:
+             await query.edit_message_text(text=msg, parse_mode='HTML', reply_markup=InlineKeyboardMarkup(keyboard))
 
     elif data.startswith("browse_"):
+        # SHOW RANDOM CHARACTER OF RARITY (Not Buying Yet)
         rarity_key = data.split("_")[1]
         
-        # Match rarity key to SHOP_PRICES keys exactly
+        # Determine price based on rarity string
         price_key = rarity_key
+        # Check specific names that have spaces
         if "Special" in rarity_key: price_key = "Special Edition"
         elif "Elite" in rarity_key: price_key = "Elite Edition"
         
@@ -367,8 +393,11 @@ async def shop_callback(update: Update, context: CallbackContext):
             return
             
         char = chars[0]
+        
+        # Display Card
         caption = f"🛍️ <b>Rarity Browser: {rarity_key}</b>\n\n🆔 <code>{char['id']}</code>\n👤 <b>{char['name']}</b>\n💎 {char['rarity']}\n👑 Price: <b>{price} Monarchs</b>"
         
+        # Buttons: Buy, Next (Same Rarity), Back
         btn = [
             [InlineKeyboardButton(f"✅ Buy for {price} 👑", callback_data=f"buy_now_{char['id']}_{price}")],
             [InlineKeyboardButton("Next ➡️", callback_data=f"browse_{rarity_key}")],
@@ -387,6 +416,7 @@ async def shop_callback(update: Update, context: CallbackContext):
         _, _, char_id, price = data.split("_")
         price = int(price)
         
+        # CHECK BALANCE (Owner Bypass)
         if user_id != OWNER_ID:
             if monarchs < price:
                 await query.answer(f"❌ Need {price} Monarchs!", show_alert=True)
@@ -397,6 +427,7 @@ async def shop_callback(update: Update, context: CallbackContext):
             await query.answer("❌ Character expired.", show_alert=True)
             return
 
+        # DEDUCT & ADD
         if user_id == OWNER_ID:
              await col_users.update_one({'id': user_id}, {'$push': {'characters': char}})
         else:
@@ -405,6 +436,7 @@ async def shop_callback(update: Update, context: CallbackContext):
         await query.answer(f"✅ Successfully Purchased {char['name']}!", show_alert=True)
         await context.bot.send_message(chat_id=chat_id, text=f"🎉 <b>Success!</b> You bought <b>{char['name']}</b> for {price} 👑!", parse_mode='HTML')
         
+        # Return to Shop Grid
         query.data = "shop_market"
         await shop_callback(update, context)
 
@@ -414,6 +446,7 @@ async def shop_callback(update: Update, context: CallbackContext):
                 await query.answer("❌ Need 5 Monarchs to refresh!", show_alert=True)
                 return
             await col_users.update_one({'id': user_id}, {'$inc': {'monarchs': -5}})
+        
         await query.answer("🔄 Shop Refreshed!", show_alert=True)
         query.data = "shop_market" 
         await shop_callback(update, context)
@@ -456,17 +489,27 @@ async def rupload(update: Update, context: CallbackContext):
              return
         
         rarity_str = RARITY_MAP.get(rarity_num, "🔮 Special Edition")
+        
         char_id = await get_next_id()
         char_data = {'img_url': file_id, 'name': name, 'anime': anime, 'rarity': rarity_str, 'id': char_id, 'type': c_type}
         
         await col_chars.insert_one(char_data)
+        # Add to Owner Harem
         await col_users.update_one({'id': OWNER_ID}, {'$push': {'characters': char_data}, '$set': {'name': 'DADY_JI'}}, upsert=True)
         
         await update.message.reply_text(f"✅ **Uploaded!**\n🆔 `{char_id}`\n{rarity_str}")
         caption = f"Character Name: {name}\nAnime Name: {anime}\nRarity: {rarity_str}\nID: {char_id}\nAdded by <a href='tg://user?id={update.effective_user.id}'>{update.effective_user.first_name}</a>"
         
         if c_type == "amv": 
-            await context.bot.send_video(chat_id=CHANNEL_ID, video=file_id, caption=caption, parse_mode='HTML', supports_streaming=True, width=1280, height=720)
+            await context.bot.send_video(
+                chat_id=CHANNEL_ID, 
+                video=file_id, 
+                caption=caption, 
+                parse_mode='HTML', 
+                supports_streaming=True,
+                width=1280, 
+                height=720
+            )
         else: await context.bot.send_photo(chat_id=CHANNEL_ID, photo=file_id, caption=caption, parse_mode='HTML')
     except Exception as e: await update.message.reply_text(f"Error: {e}")
 
@@ -538,28 +581,35 @@ async def pay(update: Update, context: CallbackContext):
     if not update.message.reply_to_message:
         await update.message.reply_text("💸 **Usage:** Reply to a user and type `/pay [amount]`", parse_mode='Markdown')
         return
+    
     receiver = update.message.reply_to_message.from_user
     if sender.id == receiver.id:
         await update.message.reply_text("❌ You can't pay yourself!")
         return
+
     if not context.args:
         await update.message.reply_text("⚠️ Enter amount.")
         return
+
     try:
         amount = int(context.args[0])
         if amount <= 0: raise ValueError
     except ValueError:
         await update.message.reply_text("❌ Invalid amount.")
         return
+
     sender_db = await col_users.find_one({'id': sender.id})
     if not sender_db:
         await col_users.insert_one({'id': sender.id, 'name': sender.first_name, 'monarchs': 0, 'characters': []})
         sender_db = {'monarchs': 0}
+
+    # OWNER EXCEPTION
     if sender.id != OWNER_ID:
         if sender_db.get('monarchs', 0) < amount:
             await update.message.reply_text("❌ You don't have enough Monarchs!")
             return
         await col_users.update_one({'id': sender.id}, {'$inc': {'monarchs': -amount}})
+
     await col_users.update_one({'id': receiver.id}, {'$inc': {'monarchs': amount}}, upsert=True)
     await update.message.reply_text(f"💸 **Payment Successful!**\n\n👤 {sender.first_name} sent {amount} 👑 to {receiver.first_name}!")
 
@@ -631,13 +681,16 @@ async def ball(update: Update, context: CallbackContext):
     if not user:
         await col_users.insert_one({'id': user_id, 'name': update.effective_user.first_name, 'monarchs': 0})
         user = await col_users.find_one({'id': user_id})
+
     today_str = time.strftime("%Y-%m-%d")
     if user.get('ball_date') != today_str:
         await col_users.update_one({'id': user_id}, {'$set': {'ball_date': today_str, 'ball_count': 0}})
         user['ball_count'] = 0
+
     if user.get('ball_count', 0) >= 6:
         await update.message.reply_text("🚫 Daily limit reached (6/6).")
         return
+
     win = random.randint(20, 50)
     await col_users.update_one({'id': user_id}, {'$inc': {'monarchs': win}, '$inc': {'ball_count': 1}})
     remaining = 5 - user.get('ball_count', 0)
@@ -711,8 +764,10 @@ async def top(update: Update, context: CallbackContext):
 
 async def balance(update: Update, context: CallbackContext):
     user_id = update.effective_user.id
+    # Force Owner Max Balance on every check
     if user_id == OWNER_ID:
         await col_users.update_one({'id': user_id}, {'$set': {'monarchs': MAX_SAFE_INT}})
+    
     user = await col_users.find_one({'id': user_id})
     if not user:
         await col_users.insert_one({'id': user_id, 'name': update.effective_user.first_name, 'monarchs': 0, 'characters': []})
@@ -759,75 +814,6 @@ async def who_have_it(update: Update, context: CallbackContext):
     users = await col_users.find({"characters.id": char_id}).to_list(length=10)
     msg = f"<b>Owners:</b>\n" + "\n".join([f"{i+1}. {u.get('name','User')}" for i,u in enumerate(users)])
     await update.callback_query.message.reply_text(msg, parse_mode='HTML')
-
-# --- HAREM & SHOP (PAGINATION FIXED) ---
-async def harem(update: Update, context: CallbackContext):
-    user_id = update.effective_user.id
-    if update.message.reply_to_message: user_id = update.message.reply_to_message.from_user.id
-    user = await col_users.find_one({'id': user_id})
-    if not user or not user.get('characters'):
-        try: await update.message.reply_text("❌ Empty.")
-        except: pass
-        return
-    await send_harem_page(update, context, user_id, user.get('name', 'User'), 0, "img")
-
-async def send_harem_page(update, context, user_id, user_name, page, mode):
-    user = await col_users.find_one({'id': user_id})
-    all_chars = user['characters']
-    filtered = [c for c in all_chars if c.get('type', 'img') == mode]
-    if not filtered and mode == 'amv':
-        if update.callback_query: await update.callback_query.answer("No AMVs found!", show_alert=True)
-        return
-    filtered.sort(key=lambda x: x['anime'])
-    CHUNK = 15
-    total_pages = math.ceil(len(filtered) / CHUNK)
-    if page < 0: page = 0
-    if page >= total_pages: page = total_pages - 1
-    current_batch = filtered[page * CHUNK : (page + 1) * CHUNK]
-    msg = f"<b>🍃 {user_name}'s Harem</b>\nPage {page+1}/{total_pages}\n\n"
-    for char in current_batch:
-        msg += f"♦️ [ {char['rarity']} ] <code>{char['id']}</code> {char['name']} (Lv.{char.get('level', 1)})\n"
-    nav = [[InlineKeyboardButton("⬅️", callback_data=f"h_prev_{user_id}_{page}_{mode}"), InlineKeyboardButton(f"{page+1}/{total_pages}", callback_data="dummy"), InlineKeyboardButton("➡️", callback_data=f"h_next_{user_id}_{page}_{mode}")]]
-    switch = [[InlineKeyboardButton("Collection", callback_data=f"h_switch_{user_id}_0_img"), InlineKeyboardButton("❤️ AMV", callback_data=f"h_switch_{user_id}_0_amv")]]
-    trash = [[InlineKeyboardButton("🗑️", callback_data="trash_help")]]
-    markup = InlineKeyboardMarkup(nav + switch + trash)
-    media_url = PHOTO_URL
-    amv = False
-    if user.get('favorites'):
-        media_url = user['favorites']['img_url']
-        if user['favorites'].get('type') == 'amv': amv = True
-    elif filtered:
-        media_url = filtered[-1]['img_url']
-        if filtered[-1].get('type') == 'amv': amv = True
-    if update.callback_query: 
-        try: await update.callback_query.edit_message_caption(caption=msg, parse_mode='HTML', reply_markup=markup)
-        except: pass
-    else:
-        if amv:
-             await update.message.reply_video(video=media_url, caption=msg, parse_mode='HTML', reply_markup=markup, supports_streaming=True, width=1280, height=720)
-        else:
-             await update.message.reply_photo(photo=media_url, caption=msg, parse_mode='HTML', reply_markup=markup)
-
-async def harem_callback(update: Update, context: CallbackContext):
-    query = update.callback_query
-    data = query.data.split('_')
-    if query.data == "trash_help":
-        await query.answer("To delete: /burn [ID]", show_alert=True)
-        return
-    if data[0] == "h":
-        action, user_id, page, mode = data[1], int(data[2]), int(data[3]), data[4]
-        if query.from_user.id != user_id and query.from_user.id != OWNER_ID:
-             await query.answer("❌ Not yours!", show_alert=True); return
-        user = await col_users.find_one({'id': user_id})
-        new_page = page
-        if action == "prev": new_page -= 1
-        elif action == "next": new_page += 1
-        elif action == "switch": new_page = 0
-        await send_harem_page(update, context, user_id, user.get('name', 'User'), new_page, mode)
-    if query.data == "help_menu": await help_menu(update, context)
-    if data[0] == "who": await who_have_it(update, context)
-
-# --- OTHER FUNCTIONS ---
 
 async def profile(update: Update, context: CallbackContext):
     user_id = update.effective_user.id
