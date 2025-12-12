@@ -272,52 +272,8 @@ async def help_menu(update: Update, context: CallbackContext):
 
 # --- NEW SHOP SYSTEM (GRID EMOJIS) ---
 
-async def shop(update: Update, context: CallbackContext):
-    user = update.effective_user
-    mention = f"<a href='tg://user?id={user.id}'>{user.first_name}</a>"
-    msg = f"🛒 <b>Welcome to the Shop, {mention}!</b>\n\nClick below to buy 🔮 Crystals or visit the Character Market 🎪!\n\nDm to Buy anything: @{OWNER_USERNAME}"
-    
-    keyboard = [
-        [InlineKeyboardButton("🔮 Crystals", callback_data="shop_crystals")],
-        [InlineKeyboardButton("Market 🎪", callback_data="shop_market")]
-    ]
-    
-    if update.callback_query:
-        try: await update.callback_query.edit_message_caption(caption=msg, parse_mode='HTML', reply_markup=InlineKeyboardMarkup(keyboard))
-        except: await context.bot.send_photo(chat_id=user.id, photo=PHOTO_URL, caption=msg, parse_mode='HTML', reply_markup=InlineKeyboardMarkup(keyboard))
-    else:
-        try:
-            await update.message.reply_photo(photo=PHOTO_URL, caption=msg, parse_mode='HTML', reply_markup=InlineKeyboardMarkup(keyboard))
-        except Exception as e:
-            await update.message.reply_text(msg, parse_mode='HTML', reply_markup=InlineKeyboardMarkup(keyboard))
-
-async def shop_callback(update: Update, context: CallbackContext):
-    query = update.callback_query
-    data = query.data
-    user = query.from_user
-    user_id = user.id
-    mention = f"<a href='tg://user?id={user.id}'>{user.first_name}</a>"
-    
-    user_db = await col_users.find_one({'id': user_id})
-    if not user_db:
-        await col_users.insert_one({'id': user_id, 'name': user.first_name, 'crystals': 0, 'characters': []})
-        user_db = {'crystals': 0}
-        
-    crystals = user_db.get('crystals', 0)
-
-    if data == "shop_main":
-        await shop(update, context)
-        
-    elif data == "shop_crystals":
-        msg = f"💸 <b>Buy 🔮 Crystals with INR ₹, {mention}!</b>\nYour Crystals: {crystals}\n\n🛒 <b>Purchase Options:</b>\n🔮 1000 Crystals = ₹25\n🔮 2000 Crystals = ₹50\n🔮 10000 Crystals = ₹? Contact Admins to get Upto 30% off\n\n📩 <b>Contact admins to buy:</b>\n👤 @{OWNER_USERNAME}"
-        keyboard = [
-            [InlineKeyboardButton("Contact to Buy", url=f"https://t.me/{OWNER_USERNAME}")],
-            [InlineKeyboardButton("Back to Shop", callback_data="shop_main")]
-        ]
-        await query.edit_message_caption(caption=msg, parse_mode='HTML', reply_markup=InlineKeyboardMarkup(keyboard))
-        
-    elif data == "shop_market":
-        # GRID LAYOUT (Only Emojis)
+ elif data == "shop_market":
+        # EXACT SCREENSHOT STYLE (Only Emojis on Buttons)
         msg = f"🌟 <b>Welcome to the Rarity Shop!</b> 🌟\n\nHere, you can spin for characters of different rarities. Each rarity has its own unique characters and spin cost.\n\nYour Crystals: 🔮 {crystals}\n\nPlease choose the rarity you want to spin for:"
         
         r1 = [
@@ -342,7 +298,7 @@ async def shop_callback(update: Update, context: CallbackContext):
         ]
         r5 = [
             InlineKeyboardButton("⛩", callback_data=f"buy_char_Amv_{SHOP_PRICES['Amv']}"),
-            InlineKeyboardButton("🔄", callback_data="shop_refresh") # Refresh Icon
+            InlineKeyboardButton("🔄", callback_data="shop_refresh")
         ]
         r6 = [
             InlineKeyboardButton("Back to Menu", callback_data="shop_main")
@@ -378,6 +334,8 @@ async def shop_callback(update: Update, context: CallbackContext):
              await context.bot.send_video(chat_id=user_id, video=char['img_url'], caption=caption, parse_mode='HTML', supports_streaming=True, width=1280, height=720)
         else:
              await context.bot.send_photo(chat_id=user_id, photo=char['img_url'], caption=caption, parse_mode='HTML')
+        
+        # Refresh the shop UI
         await shop_callback(update, context)
 
     elif data == "shop_refresh":
@@ -389,7 +347,6 @@ async def shop_callback(update: Update, context: CallbackContext):
         query.data = "shop_market" 
         await shop_callback(update, context)
 
-# --- GAME ENGINE & COMMANDS ---
 
 async def stats(update: Update, context: CallbackContext):
     if update.effective_user.id != OWNER_ID: return
