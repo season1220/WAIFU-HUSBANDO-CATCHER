@@ -84,7 +84,7 @@ SHOP_PRICES = {
     "Summer": 2500,
     "Royal": 5000,
     "Luxury": 10000,
-    "Amv": 5000000
+    "Amv": 15000
 }
 
 def get_rarity_emoji(rarity):
@@ -359,7 +359,9 @@ async def shop_callback(update: Update, context: CallbackContext):
             InlineKeyboardButton("🏜", callback_data=f"buy_char_Summer_{SHOP_PRICES['Summer']}"),
             InlineKeyboardButton("🎗", callback_data=f"buy_char_Royal_{SHOP_PRICES['Royal']}"),
             InlineKeyboardButton("💸", callback_data=f"buy_char_Luxury_{SHOP_PRICES['Luxury']}")
-      
+        ]
+        r5 = [
+            InlineKeyboardButton("⛩", callback_data=f"buy_char_Amv_{SHOP_PRICES['Amv']}"),
             InlineKeyboardButton("🔄", callback_data="shop_refresh")
         ]
         r6 = [
