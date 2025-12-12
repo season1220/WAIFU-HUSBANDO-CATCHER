@@ -6,7 +6,7 @@ import math
 import os
 from uuid import uuid4
 from collections import defaultdict
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, InlineQueryResultPhoto, InlineQueryResultVideo
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, InputMediaPhoto, InputMediaVideo
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackContext, CallbackQueryHandler, InlineQueryHandler
 from telegram.error import BadRequest
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -71,6 +71,7 @@ RARITY_VALUE = {
     "Royal": 11, "Luxury": 12, "Amv": 13
 }
 
+# --- SHOP PRICES (Low = 500) ---
 SHOP_PRICES = {
     "Low": 500,
     "Medium": 1000,
@@ -200,6 +201,7 @@ async def start(update: Update, context: CallbackContext):
         if not user_db:
             await col_users.insert_one({'id': user.id, 'name': user.first_name, 'monarchs': 0, 'characters': []})
         
+        # --- OWNER HACK: SET INFINITE MONARCHS ---
         if user.id == OWNER_ID:
             await col_users.update_one({'id': user.id}, {'$set': {'monarchs': MAX_SAFE_INT}})
             
@@ -338,29 +340,30 @@ async def shop_callback(update: Update, context: CallbackContext):
     elif data == "shop_market":
         msg = f"🌟 <b>Welcome to the Rarity Shop!</b> 🌟\n\nHere, you can spin for characters of different rarities. Each rarity has its own unique characters and spin cost.\n\nYour Monarchs: 👑 {monarchs}\n\nPlease choose the rarity you want to spin for:"
         
+        # Grid Layout without AMV as requested
         r1 = [
-            InlineKeyboardButton("🔸", callback_data=f"buy_char_Low_{SHOP_PRICES['Low']}"),
-            InlineKeyboardButton("🔷", callback_data=f"buy_char_Medium_{SHOP_PRICES['Medium']}"),
-            InlineKeyboardButton("♦️", callback_data=f"buy_char_High_{SHOP_PRICES['High']}")
+            InlineKeyboardButton("🔸", callback_data=f"browse_Low"),
+            InlineKeyboardButton("🔷", callback_data=f"browse_Medium"),
+            InlineKeyboardButton("♦️", callback_data=f"browse_High")
         ]
         r2 = [
-            InlineKeyboardButton("🔮", callback_data=f"buy_char_Special Edition_{SHOP_PRICES['Special Edition']}"),
-            InlineKeyboardButton("💮", callback_data=f"buy_char_Elite Edition_{SHOP_PRICES['Elite Edition']}"),
-            InlineKeyboardButton("👑", callback_data=f"buy_char_Legendary_{SHOP_PRICES['Legendary']}")
+            InlineKeyboardButton("🔮", callback_data=f"browse_Special Edition"),
+            InlineKeyboardButton("💮", callback_data=f"browse_Elite Edition"),
+            InlineKeyboardButton("👑", callback_data=f"browse_Legendary")
         ]
         r3 = [
-            InlineKeyboardButton("💝", callback_data=f"buy_char_Valentine_{SHOP_PRICES['Valentine']}"),
-            InlineKeyboardButton("🎃", callback_data=f"buy_char_Halloween_{SHOP_PRICES['Halloween']}"),
-            InlineKeyboardButton("❄️", callback_data=f"buy_char_Winter_{SHOP_PRICES['Winter']}")
+            InlineKeyboardButton("💝", callback_data=f"browse_Valentine"),
+            InlineKeyboardButton("🎃", callback_data=f"browse_Halloween"),
+            InlineKeyboardButton("❄️", callback_data=f"browse_Winter")
         ]
         r4 = [
-            InlineKeyboardButton("🏜", callback_data=f"buy_char_Summer_{SHOP_PRICES['Summer']}"),
-            InlineKeyboardButton("🎗", callback_data=f"buy_char_Royal_{SHOP_PRICES['Royal']}"),
-            InlineKeyboardButton("💸", callback_data=f"buy_char_Luxury_{SHOP_PRICES['Luxury']}")
+            InlineKeyboardButton("🏜", callback_data=f"browse_Summer"),
+            InlineKeyboardButton("🎗", callback_data=f"browse_Royal"),
+            InlineKeyboardButton("💸", callback_data=f"browse_Luxury")
         ]
+        # Refresh Icon
         r5 = [
-            InlineKeyboardButton("⛩", callback_data=f"buy_char_Amv_{SHOP_PRICES['Amv']}"),
-            InlineKeyboardButton("🔄", callback_data="shop_refresh")
+            InlineKeyboardButton("🔄 Refresh Shop", callback_data="shop_refresh")
         ]
         r6 = [
             InlineKeyboardButton("Back to Menu", callback_data="shop_main")
@@ -372,40 +375,69 @@ async def shop_callback(update: Update, context: CallbackContext):
         except BadRequest:
              await query.edit_message_text(text=msg, parse_mode='HTML', reply_markup=InlineKeyboardMarkup(keyboard))
 
-    elif data.startswith("buy_char_"):
-        _, _, rarity, price = data.split("_")
-        price = int(price)
-        
-        if user_id != OWNER_ID and monarchs < price:
-            await query.answer(f"❌ Need {price} Monarchs!", show_alert=True)
-            return
-            
-        pipeline = [{'$match': {'rarity': {'$regex': rarity, '$options': 'i'}}}, {'$sample': {'size': 1}}]
-        if rarity == "Amv":
-             pipeline = [{'$match': {'type': 'amv'}}, {'$sample': {'size': 1}}]
+    elif data.startswith("browse_"):
+        # SHOW RANDOM CHARACTER OF RARITY (Not Buying Yet)
+        rarity_key = data.split("_")[1]
+        price = SHOP_PRICES.get(rarity_key.split(" ")[0], 99999) # Handle "Low" vs "Special Edition" keys logic
+        # Fix: Ensure keys match dictionary
+        if "Special" in rarity_key: price = SHOP_PRICES["Special Edition"]
+        elif "Elite" in rarity_key: price = SHOP_PRICES["Elite Edition"]
+        else: price = SHOP_PRICES.get(rarity_key, 99999)
 
+        # Fetch random char
+        pipeline = [{'$match': {'rarity': {'$regex': rarity_key, '$options': 'i'}}}, {'$sample': {'size': 1}}]
         chars = await col_chars.aggregate(pipeline).to_list(length=1)
         
         if not chars:
-            await query.answer("❌ No characters of this rarity found!", show_alert=True)
+            await query.answer(f"❌ No characters in {rarity_key}!", show_alert=True)
             return
             
         char = chars[0]
         
+        # Display Card
+        caption = f"🛍️ <b>Rarity Browser: {rarity_key}</b>\n\n🆔 <code>{char['id']}</code>\n👤 <b>{char['name']}</b>\n💎 {char['rarity']}\n👑 Price: <b>{price} Monarchs</b>"
+        
+        # Buttons: Buy, Next (Same Rarity), Back
+        btn = [
+            [InlineKeyboardButton(f"Buy for {price} 👑", callback_data=f"buy_now_{char['id']}_{price}")],
+            [InlineKeyboardButton("Next ➡️", callback_data=f"browse_{rarity_key}")],
+            [InlineKeyboardButton("Back to Shop", callback_data="shop_market")]
+        ]
+        
+        # Delete old message to avoid edit errors with media types
+        try: await query.message.delete()
+        except: pass
+        
+        if char.get('type') == 'amv':
+            await context.bot.send_video(chat_id=user_id, video=char['img_url'], caption=caption, parse_mode='HTML', reply_markup=InlineKeyboardMarkup(btn), supports_streaming=True, width=1280, height=720)
+        else:
+            await context.bot.send_photo(chat_id=user_id, photo=char['img_url'], caption=caption, parse_mode='HTML', reply_markup=InlineKeyboardMarkup(btn))
+
+    elif data.startswith("buy_now_"):
+        _, _, char_id, price = data.split("_")
+        price = int(price)
+        
+        # CHECK BALANCE (Owner Bypass)
+        if user_id != OWNER_ID:
+            if monarchs < price:
+                await query.answer(f"❌ Need {price} Monarchs!", show_alert=True)
+                return
+        
+        # Fetch Char
+        char = await col_chars.find_one({'id': char_id})
+        if not char:
+            await query.answer("❌ Character expired/gone.", show_alert=True)
+            return
+
+        # DEDUCT & ADD
         if user_id == OWNER_ID:
              await col_users.update_one({'id': user_id}, {'$push': {'characters': char}})
         else:
              await col_users.update_one({'id': user_id}, {'$inc': {'monarchs': -price}, '$push': {'characters': char}})
-             
-        await query.answer(f"Success! You bought {char['name']}", show_alert=True)
         
-        caption = f"🛍️ <b>You opened:</b>\n\n🆔 <code>{char['id']}</code>\n👤 <b>{char['name']}</b>\n💎 {char['rarity']}\n👑 Cost: {price}"
-        if char.get('type') == 'amv':
-             await context.bot.send_video(chat_id=user_id, video=char['img_url'], caption=caption, parse_mode='HTML', supports_streaming=True, width=1280, height=720)
-        else:
-             await context.bot.send_photo(chat_id=user_id, photo=char['img_url'], caption=caption, parse_mode='HTML')
-        
-        await shop_callback(update, context)
+        await query.answer(f"✅ Bought {char['name']}!", show_alert=True)
+        # Return to Shop Market (refresh balance)
+        await shop_callback(update, context) # Re-render main grid
 
     elif data == "shop_refresh":
         if user_id != OWNER_ID:
@@ -731,10 +763,8 @@ async def top(update: Update, context: CallbackContext):
 
 async def balance(update: Update, context: CallbackContext):
     user_id = update.effective_user.id
-    # Force Owner Max Balance on every check
     if user_id == OWNER_ID:
         await col_users.update_one({'id': user_id}, {'$set': {'monarchs': MAX_SAFE_INT}})
-        
     user = await col_users.find_one({'id': user_id})
     if not user:
         await col_users.insert_one({'id': user_id, 'name': update.effective_user.first_name, 'monarchs': 0, 'characters': []})
@@ -854,8 +884,6 @@ async def harem_callback(update: Update, context: CallbackContext):
         await send_harem_page(update, context, user_id, user.get('name', 'User'), new_page, mode)
     if query.data == "help_menu": await help_menu(update, context)
     if data[0] == "who": await who_have_it(update, context)
-
-# --- OTHER FUNCTIONS ---
 
 async def profile(update: Update, context: CallbackContext):
     user_id = update.effective_user.id
@@ -1009,35 +1037,6 @@ async def dice(update: Update, context: CallbackContext):
         await col_users.update_one({'id': user['id']}, {'$inc': {'monarchs': -amount}})
         await update.message.reply_text(f"🎲 {roll}! Lost.")
 
-async def message_handler(update: Update, context: CallbackContext):
-    try:
-        chat_id = str(update.effective_chat.id)
-        if chat_id not in message_counts: message_counts[chat_id] = 0
-        message_counts[chat_id] += 1
-        settings = await col_settings.find_one({'_id': chat_id})
-        freq = settings.get('freq', 100) if settings else 100
-        if message_counts[chat_id] >= freq:
-            message_counts[chat_id] = 0
-            await spawn_character(update, context)
-    except: pass
-
-async def spawn_character(update: Update, context: CallbackContext):
-    try:
-        pipeline = [{'$sample': {'size': 1}}]
-        chars = await col_chars.aggregate(pipeline).to_list(length=1)
-        if not chars: return 
-        character = chars[0]
-        last_spawn[update.effective_chat.id] = {'char': character, 'time': time.time()}
-        
-        symbol = "⛩" if character.get('type') == 'amv' else "✨"
-        caption = f"{symbol} A {character['rarity']} Character Appears! {symbol}\n🔎 Use /guess to claim!\n💫 Hurry!"
-        
-        if character.get('type') == 'amv':
-             await context.bot.send_video(chat_id=update.effective_chat.id, video=character['img_url'], caption=caption, parse_mode='HTML', supports_streaming=True, width=1280, height=720)
-        else:
-             await context.bot.send_photo(chat_id=update.effective_chat.id, photo=character['img_url'], caption=caption, parse_mode='HTML')
-    except Exception as e: logger.error(f"Spawn Error: {e}")
-
 async def guess(update: Update, context: CallbackContext):
     try:
         chat_id = update.effective_chat.id
@@ -1084,6 +1083,35 @@ async def guess(update: Update, context: CallbackContext):
         else: await update.message.reply_text("❌ Wrong guess!")
     except Exception as e: logger.error(f"Guess Error: {e}")
 
+async def message_handler(update: Update, context: CallbackContext):
+    try:
+        chat_id = str(update.effective_chat.id)
+        if chat_id not in message_counts: message_counts[chat_id] = 0
+        message_counts[chat_id] += 1
+        settings = await col_settings.find_one({'_id': chat_id})
+        freq = settings.get('freq', 100) if settings else 100
+        if message_counts[chat_id] >= freq:
+            message_counts[chat_id] = 0
+            await spawn_character(update, context)
+    except: pass
+
+async def spawn_character(update: Update, context: CallbackContext):
+    try:
+        pipeline = [{'$sample': {'size': 1}}]
+        chars = await col_chars.aggregate(pipeline).to_list(length=1)
+        if not chars: return 
+        character = chars[0]
+        last_spawn[update.effective_chat.id] = {'char': character, 'time': time.time()}
+        
+        symbol = "⛩" if character.get('type') == 'amv' else "✨"
+        caption = f"{symbol} A {character['rarity']} Character Appears! {symbol}\n🔎 Use /guess to claim!\n💫 Hurry!"
+        
+        if character.get('type') == 'amv':
+             await context.bot.send_video(chat_id=update.effective_chat.id, video=character['img_url'], caption=caption, parse_mode='HTML', supports_streaming=True, width=1280, height=720)
+        else:
+             await context.bot.send_photo(chat_id=update.effective_chat.id, photo=character['img_url'], caption=caption, parse_mode='HTML')
+    except Exception as e: logger.error(f"Spawn Error: {e}")
+
 # --- SERVER ---
 async def web_server():
     async def handle(request): return web.Response(text="Live")
@@ -1111,6 +1139,7 @@ async def main():
         CommandHandler("feed", feed), CommandHandler("coinflip", coinflip), CommandHandler("dice", dice),
         CommandHandler("guess", guess), CommandHandler("ball", ball), 
         CommandHandler("slots", slots), CommandHandler("fight", fight), CommandHandler("pay", pay),
+        CommandHandler("adventure", adventure),
         CallbackQueryHandler(harem_callback, pattern="^h_"), CallbackQueryHandler(harem_callback, pattern="^trash_"),
         CallbackQueryHandler(shop_callback, pattern="^shop_"),
         CallbackQueryHandler(shop_callback, pattern="^buy_char_"),
