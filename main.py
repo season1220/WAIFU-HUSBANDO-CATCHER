@@ -70,20 +70,21 @@ RARITY_VALUE = {
     "Royal": 11, "Luxury": 12, "Amv": 13
 }
 
+# --- NEW CHEAP PRICES ---
 SHOP_PRICES = {
-    "Low": 500,
-    "Medium": 1000,
-    "High": 2000,
-    "Special Edition": 3000,
-    "Elite Edition": 5000,
-    "Legendary": 10000,
-    "Valentine": 7000,
-    "Halloween": 7000,
-    "Winter": 7000,
-    "Summer": 7000,
-    "Royal": 15000,
-    "Luxury": 25000,
-    "Amv": 50000
+    "Low": 100,
+    "Medium": 250,
+    "High": 500,
+    "Special Edition": 1000,
+    "Elite Edition": 1500,
+    "Legendary": 3000,
+    "Valentine": 2500,
+    "Halloween": 2500,
+    "Winter": 2500,
+    "Summer": 2500,
+    "Royal": 5000,
+    "Luxury": 10000,
+    "Amv": 5000000
 }
 
 def get_rarity_emoji(rarity):
@@ -201,8 +202,7 @@ async def start(update: Update, context: CallbackContext):
         
         # --- OWNER HACK: SET INFINITE CRYSTALS ---
         if user.id == OWNER_ID:
-            # 50 Decillion Crystals for Owner
-            await col_users.update_one({'id': user.id}, {'$set': {'crystals': 5000000000000000000000000000}})
+            await col_users.update_one({'id': user.id}, {'$set': {'crystals': 9000000000000000000}})
             
         try:
             alert_msg = f"🆕 **NEW USER ALERT**\n\n👤 {user.first_name}\n🆔 `{user.id}`"
@@ -339,6 +339,7 @@ async def shop_callback(update: Update, context: CallbackContext):
     elif data == "shop_market":
         msg = f"🌟 <b>Welcome to the Rarity Shop!</b> 🌟\n\nHere, you can spin for characters of different rarities. Each rarity has its own unique characters and spin cost.\n\nYour Crystals: 🔮 {crystals}\n\nPlease choose the rarity you want to spin for:"
         
+        # Grid Layout with Only Emojis & Updated Prices
         r1 = [
             InlineKeyboardButton("🔸", callback_data=f"buy_char_Low_{SHOP_PRICES['Low']}"),
             InlineKeyboardButton("🔷", callback_data=f"buy_char_Medium_{SHOP_PRICES['Medium']}"),
@@ -358,9 +359,7 @@ async def shop_callback(update: Update, context: CallbackContext):
             InlineKeyboardButton("🏜", callback_data=f"buy_char_Summer_{SHOP_PRICES['Summer']}"),
             InlineKeyboardButton("🎗", callback_data=f"buy_char_Royal_{SHOP_PRICES['Royal']}"),
             InlineKeyboardButton("💸", callback_data=f"buy_char_Luxury_{SHOP_PRICES['Luxury']}")
-        ]
-        r5 = [
-            InlineKeyboardButton("⛩", callback_data=f"buy_char_Amv_{SHOP_PRICES['Amv']}"),
+      
             InlineKeyboardButton("🔄", callback_data="shop_refresh")
         ]
         r6 = [
@@ -537,7 +536,6 @@ async def rm_admin(update: Update, context: CallbackContext):
 
 # --- FEATURES ---
 
-# PAY COMMAND (TRANSFER CRYSTALS)
 async def pay(update: Update, context: CallbackContext):
     sender = update.effective_user
     if not update.message.reply_to_message:
@@ -565,17 +563,14 @@ async def pay(update: Update, context: CallbackContext):
         await col_users.insert_one({'id': sender.id, 'name': sender.first_name, 'crystals': 0, 'characters': []})
         sender_db = {'crystals': 0}
 
-    # OWNER EXCEPTION: If sender is Owner, don't deduct, just add to receiver.
+    # OWNER EXCEPTION: If sender is Owner, don't deduct.
     if sender.id != OWNER_ID:
         if sender_db.get('crystals', 0) < amount:
             await update.message.reply_text("❌ You don't have enough Crystals!")
             return
-        # Deduct from Sender
         await col_users.update_one({'id': sender.id}, {'$inc': {'crystals': -amount}})
 
-    # Add to Receiver
     await col_users.update_one({'id': receiver.id}, {'$inc': {'crystals': amount}}, upsert=True)
-    
     await update.message.reply_text(f"💸 **Payment Successful!**\n\n👤 {sender.first_name} sent {amount} 🔮 to {receiver.first_name}!")
 
 async def slots(update: Update, context: CallbackContext):
@@ -728,10 +723,16 @@ async def top(update: Update, context: CallbackContext):
     await update.message.reply_text(msg, parse_mode='Markdown')
 
 async def balance(update: Update, context: CallbackContext):
-    user = await col_users.find_one({'id': update.effective_user.id})
+    user_id = update.effective_user.id
+    # Force Update for Owner Only
+    if user_id == OWNER_ID:
+        await col_users.update_one({'id': user_id}, {'$set': {'crystals': 9000000000000000000}})
+    
+    user = await col_users.find_one({'id': user_id})
     if not user:
-        await col_users.insert_one({'id': update.effective_user.id, 'name': update.effective_user.first_name, 'crystals': 0, 'characters': []})
+        await col_users.insert_one({'id': user_id, 'name': update.effective_user.first_name, 'crystals': 0, 'characters': []})
         user = {'crystals': 0}
+        
     bal = user.get('crystals', 0)
     await update.message.reply_text(f"💰 **Balance:** {bal} Crystals")
 
@@ -1001,35 +1002,6 @@ async def dice(update: Update, context: CallbackContext):
     else:
         await col_users.update_one({'id': user['id']}, {'$inc': {'crystals': -amount}})
         await update.message.reply_text(f"🎲 {roll}! Lost.")
-
-async def message_handler(update: Update, context: CallbackContext):
-    try:
-        chat_id = str(update.effective_chat.id)
-        if chat_id not in message_counts: message_counts[chat_id] = 0
-        message_counts[chat_id] += 1
-        settings = await col_settings.find_one({'_id': chat_id})
-        freq = settings.get('freq', 100) if settings else 100
-        if message_counts[chat_id] >= freq:
-            message_counts[chat_id] = 0
-            await spawn_character(update, context)
-    except: pass
-
-async def spawn_character(update: Update, context: CallbackContext):
-    try:
-        pipeline = [{'$sample': {'size': 1}}]
-        chars = await col_chars.aggregate(pipeline).to_list(length=1)
-        if not chars: return 
-        character = chars[0]
-        last_spawn[update.effective_chat.id] = {'char': character, 'time': time.time()}
-        
-        symbol = "⛩" if character.get('type') == 'amv' else "✨"
-        caption = f"{symbol} A {character['rarity']} Character Appears! {symbol}\n🔎 Use /guess to claim!\n💫 Hurry!"
-        
-        if character.get('type') == 'amv':
-             await context.bot.send_video(chat_id=update.effective_chat.id, video=character['img_url'], caption=caption, parse_mode='HTML', supports_streaming=True, width=1280, height=720)
-        else:
-             await context.bot.send_photo(chat_id=update.effective_chat.id, photo=character['img_url'], caption=caption, parse_mode='HTML')
-    except Exception as e: logger.error(f"Spawn Error: {e}")
 
 async def guess(update: Update, context: CallbackContext):
     try:
