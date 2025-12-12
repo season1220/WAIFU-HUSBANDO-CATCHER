@@ -62,6 +62,14 @@ RARITY_MAP = {
     13: "⛩ Amv"
 }
 
+# Fight ke liye power levels
+RARITY_VALUE = {
+    "Low": 1, "Medium": 2, "High": 3, "Special Edition": 4,
+    "Elite Edition": 5, "Legendary": 6, "Valentine": 7,
+    "Halloween": 8, "Winter": 9, "Summer": 10,
+    "Royal": 11, "Luxury": 12, "Amv": 13
+}
+
 RARITY_PRICE = {
     "Low": 1, 
     "Medium": 1, 
@@ -256,6 +264,8 @@ async def help_menu(update: Update, context: CallbackContext):
 <b>⚙️ COMMAND LIST</b>
 /guess - Catch character
 /ball - Win Waifu Dollars
+/slots - Gambling Machine 🎰
+/fight - Battle Users ⚔️
 /harem - Collection
 /profile - Check Profile
 /shop - Cosmic Bazaar
@@ -400,6 +410,105 @@ async def rm_admin(update: Update, context: CallbackContext):
     await update.message.reply_text("✅ Admin Removed.")
 
 # --- FEATURES ---
+
+# 1. NEW SLOTS FEATURE
+async def slots(update: Update, context: CallbackContext):
+    if not context.args:
+        await update.message.reply_text("🎰 **Usage:** `/slots [amount]`", parse_mode='Markdown')
+        return
+
+    try:
+        bet = int(context.args[0])
+    except ValueError:
+        await update.message.reply_text("❌ Please enter a valid number!")
+        return
+
+    if bet < 50:
+        await update.message.reply_text("❌ Minimum bet is 50 coins!")
+        return
+
+    user_id = update.effective_user.id
+    user = await col_users.find_one({'id': user_id})
+
+    if not user or user.get('balance', 0) < bet:
+        await update.message.reply_text("❌ You don't have enough coins!")
+        return
+
+    # Emojis for slots
+    emojis = ["🍎", "🍒", "💎", "7️⃣", "🍇", "🔔"]
+    a = random.choice(emojis)
+    b = random.choice(emojis)
+    c = random.choice(emojis)
+
+    # Result Logic
+    result_text = f"🎰 **SLOTS** 🎰\n\n| {a} | {b} | {c} |\n\n"
+
+    if a == b == c:
+        win_amount = bet * 5
+        await col_users.update_one({'id': user_id}, {'$inc': {'balance': win_amount}})
+        result_text += f"🎉 **JACKPOT!** You won **{win_amount}** coins!"
+    elif a == b or b == c or a == c:
+        win_amount = int(bet * 1.5)
+        await col_users.update_one({'id': user_id}, {'$inc': {'balance': win_amount}})
+        result_text += f"😲 **Nice!** You won **{win_amount}** coins!"
+    else:
+        await col_users.update_one({'id': user_id}, {'$inc': {'balance': -bet}})
+        result_text += f"💔 You lost **{bet}** coins. Try again!"
+
+    await update.message.reply_text(result_text, parse_mode='Markdown')
+
+# 2. NEW FIGHT FEATURE
+async def fight(update: Update, context: CallbackContext):
+    sender = update.effective_user
+    if not update.message.reply_to_message:
+        await update.message.reply_text("⚔️ Reply to a user to fight!")
+        return
+    
+    opponent = update.message.reply_to_message.from_user
+    if sender.id == opponent.id:
+        await update.message.reply_text("🛑 You cannot fight yourself!")
+        return
+
+    # Database Check
+    u1 = await col_users.find_one({'id': sender.id})
+    u2 = await col_users.find_one({'id': opponent.id})
+
+    if not u1 or not u1.get('characters'):
+        await update.message.reply_text("❌ You need characters to fight!")
+        return
+    if not u2 or not u2.get('characters'):
+        await update.message.reply_text("❌ Opponent has no characters!")
+        return
+
+    # Select Random Char
+    char1 = random.choice(u1['characters'])
+    char2 = random.choice(u2['characters'])
+
+    # Get Power
+    p1 = RARITY_VALUE.get(char1.get('rarity').split(' ')[-1], 1) # Extract text rarity
+    p2 = RARITY_VALUE.get(char2.get('rarity').split(' ')[-1], 1)
+
+    # Clean Names
+    n1 = char1['name']
+    n2 = char2['name']
+    
+    msg = f"⚔️ **BATTLE STARTED** ⚔️\n\n"
+    msg += f"👤 {sender.first_name}: **{n1}** ({char1['rarity']})\n"
+    msg += f"🆚\n"
+    msg += f"👤 {opponent.first_name}: **{n2}** ({char2['rarity']})\n\n"
+
+    if p1 > p2:
+        await col_users.update_one({'id': sender.id}, {'$inc': {'balance': 200}})
+        await col_users.update_one({'id': opponent.id}, {'$inc': {'balance': -200}})
+        msg += f"🏆 **Winner:** {sender.first_name}!\n💰 Won 200 coins!"
+    elif p2 > p1:
+        await col_users.update_one({'id': opponent.id}, {'$inc': {'balance': 200}})
+        await col_users.update_one({'id': sender.id}, {'$inc': {'balance': -200}})
+        msg += f"🏆 **Winner:** {opponent.first_name}!\n💰 Won 200 coins!"
+    else:
+        msg += f"🤝 **It's a Tie!** No coins lost."
+
+    await update.message.reply_text(msg, parse_mode='Markdown')
 
 async def daily(update: Update, context: CallbackContext):
     user_id = update.effective_user.id
@@ -965,7 +1074,8 @@ async def main():
         CommandHandler("burn", burn), CommandHandler("divorce", divorce), CommandHandler("auction", auction),
         CommandHandler("bid", bid), CommandHandler("createclan", createclan), CommandHandler("joinclan", joinclan),
         CommandHandler("feed", feed), CommandHandler("coinflip", coinflip), CommandHandler("dice", dice),
-        CommandHandler("guess", guess), CommandHandler("ball", ball),
+        CommandHandler("guess", guess), CommandHandler("ball", ball), 
+        CommandHandler("slots", slots), CommandHandler("fight", fight), # Added New Handlers
         CallbackQueryHandler(harem_callback, pattern="^h_"), CallbackQueryHandler(harem_callback, pattern="^trash_"),
         CallbackQueryHandler(shop_callback, pattern="^(shop|buy)"),
         CallbackQueryHandler(help_menu, pattern="help_menu"), CallbackQueryHandler(who_have_it, pattern="^who_"),
