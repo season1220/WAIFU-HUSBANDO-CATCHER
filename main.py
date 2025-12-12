@@ -17,7 +17,7 @@ TOKEN = "8578752843:AAFFd6BRi5_Q9Vm2hiqgkiAvFq9WTTY05Bg"
 MONGO_URL = "mongodb+srv://seasonking:season_123@cluster0.e5zbzap.mongodb.net/?appName=Cluster0"
 OWNER_ID = 7164618867
 CHANNEL_ID = -1003352372209 
-PORT = 10000
+PORT = int(os.environ.get("PORT", 10000))
 BOT_USERNAME = "seasonwaifuBot"
 OWNER_USERNAME = "DADY_JI"
 
@@ -122,7 +122,7 @@ async def error_handler(update: object, context: CallbackContext) -> None:
     logger.error(msg="Exception while handling an update:", exc_info=context.error)
 
 # --- BACKGROUND TASK ---
-async def check_auctions(app):
+async def check_auctions(ptb_application):
     while True:
         try:
             now = time.time()
@@ -135,7 +135,8 @@ async def check_auctions(app):
                     price = auction['current_bid']
                     await col_users.update_one({'id': winner_id}, {'$push': {'characters': char}})
                     await col_users.update_one({'id': seller_id}, {'$inc': {'crystals': price}})
-                    try: await app.bot.send_message(chat_id=CHANNEL_ID, text=f"🔨 **Auction Ended!**\n{char['name']} sold to `{winner_id}` for {price} Crystals!", parse_mode='Markdown')
+                    try: 
+                        await ptb_application.bot.send_message(chat_id=CHANNEL_ID, text=f"🔨 **Auction Ended!**\n{char['name']} sold to `{winner_id}` for {price} Crystals!", parse_mode='Markdown')
                     except: pass
                 else:
                     await col_users.update_one({'id': seller_id}, {'$push': {'characters': auction['char']}})
@@ -258,12 +259,11 @@ async def help_menu(update: Update, context: CallbackContext):
     else: 
         await update.message.reply_text(msg, parse_mode='HTML')
 
-# --- NEW SHOP SYSTEM (With User Mention) ---
+# --- NEW SHOP SYSTEM ---
 
 async def shop(update: Update, context: CallbackContext):
     user = update.effective_user
     mention = f"<a href='tg://user?id={user.id}'>{user.first_name}</a>"
-    
     msg = f"🛒 <b>Welcome to the Shop, {mention}!</b>\n\nClick below to buy 🔮 Crystals or visit the Character Market 🎪!\n\nDm to Buy anything: @{OWNER_USERNAME}"
     
     keyboard = [
@@ -285,7 +285,6 @@ async def shop_callback(update: Update, context: CallbackContext):
     data = query.data
     user = query.from_user
     user_id = user.id
-    
     mention = f"<a href='tg://user?id={user.id}'>{user.first_name}</a>"
     
     user_db = await col_users.find_one({'id': user_id})
@@ -308,7 +307,6 @@ async def shop_callback(update: Update, context: CallbackContext):
         
     elif data == "shop_market":
         msg = f"🎪 <b>Welcome to the Character Market, {mention}!</b>\n🔮 Your Crystals: {crystals}\n\n🛍️ <b>Buy Characters with Crystals:</b>"
-        
         r1 = [
             InlineKeyboardButton(f"🔸 -{SHOP_PRICES['Low']} 🔮", callback_data=f"buy_char_Low_{SHOP_PRICES['Low']}"),
             InlineKeyboardButton(f"🔷 -{SHOP_PRICES['Medium']} 🔮", callback_data=f"buy_char_Medium_{SHOP_PRICES['Medium']}")
@@ -326,7 +324,7 @@ async def shop_callback(update: Update, context: CallbackContext):
             InlineKeyboardButton(f"🎗 -{SHOP_PRICES['Royal']} 🔮", callback_data=f"buy_char_Royal_{SHOP_PRICES['Royal']}")
         ]
         r5 = [
-            InlineKeyboardButton(f"❄️ -{SHOP_PRICES['Winter']} 🔮", callback_data=f"buy_char_Winter_{SHOP_PRICES['Winter']}"),
+            InlineKeyboardButton(f"❄ -{SHOP_PRICES['Winter']} 🔮", callback_data=f"buy_char_Winter_{SHOP_PRICES['Winter']}"),
             InlineKeyboardButton(f"💝 -{SHOP_PRICES['Valentine']} 🔮", callback_data=f"buy_char_Valentine_{SHOP_PRICES['Valentine']}")
         ]
         r6 = [
@@ -336,32 +334,24 @@ async def shop_callback(update: Update, context: CallbackContext):
             InlineKeyboardButton("Refresh -5 🔮", callback_data="shop_refresh"),
             InlineKeyboardButton("Back", callback_data="shop_main")
         ]
-        
         keyboard = [r1, r2, r3, r4, r5, r6, r7]
         await query.edit_message_caption(caption=msg, parse_mode='HTML', reply_markup=InlineKeyboardMarkup(keyboard))
 
     elif data.startswith("buy_char_"):
         _, _, rarity, price = data.split("_")
         price = int(price)
-        
         if crystals < price:
             await query.answer("❌ Not enough Crystals!", show_alert=True)
             return
-            
         pipeline = [{'$match': {'rarity': {'$regex': rarity, '$options': 'i'}}}, {'$sample': {'size': 1}}]
-        if rarity == "Amv":
-             pipeline = [{'$match': {'type': 'amv'}}, {'$sample': {'size': 1}}]
-
+        if rarity == "Amv": pipeline = [{'$match': {'type': 'amv'}}, {'$sample': {'size': 1}}]
         chars = await col_chars.aggregate(pipeline).to_list(length=1)
-        
         if not chars:
             await query.answer("❌ No characters of this rarity found!", show_alert=True)
             return
-            
         char = chars[0]
         await col_users.update_one({'id': user_id}, {'$inc': {'crystals': -price}, '$push': {'characters': char}})
         await query.answer(f"Success! You bought {char['name']}", show_alert=True)
-        
         caption = f"🛍️ <b>Purchased Successfully!</b>\n\n🆔 <code>{char['id']}</code>\n👤 <b>{char['name']}</b>\n💎 {char['rarity']}\n🔮 Cost: {price}"
         if char.get('type') == 'amv':
              await context.bot.send_video(chat_id=user_id, video=char['img_url'], caption=caption, parse_mode='HTML', supports_streaming=True, width=1280, height=720)
@@ -378,7 +368,7 @@ async def shop_callback(update: Update, context: CallbackContext):
         query.data = "shop_market" 
         await shop_callback(update, context)
 
-# --- GAME ENGINE & COMMANDS ---
+# --- ADMIN COMMANDS ---
 
 async def stats(update: Update, context: CallbackContext):
     if update.effective_user.id != OWNER_ID: return
@@ -391,41 +381,32 @@ async def rupload(update: Update, context: CallbackContext):
     if not msg: 
         await update.message.reply_text("⚠️ **Error:** Reply to Photo/Video!")
         return
-
     file_id, c_type = (msg.photo[-1].file_id, "img") if msg.photo else (msg.video.file_id, "amv") if msg.video else (msg.animation.file_id, "amv") if msg.animation else (None, None)
     if not file_id: 
         await update.message.reply_text("❌ Media not found.")
         return
-
     try:
         args = context.args
         if len(args) < 3: 
             await update.message.reply_text("⚠️ **Format:** `/rupload Name Anime Number`")
             return
-        
         name = args[0].replace('-', ' ').title()
         anime = args[1].replace('-', ' ').title()
         try: rarity_num = int(args[2])
         except: rarity_num = 4 
-
         if c_type == "amv" and rarity_num != 13:
              await update.message.reply_text("❌ AMV ke liye **13** use karein!")
              return
         if c_type == "img" and rarity_num == 13:
              await update.message.reply_text("❌ Photo ke liye **13** use mat karein!")
              return
-        
         rarity_str = RARITY_MAP.get(rarity_num, "🔮 Special Edition")
-        
         char_id = await get_next_id()
         char_data = {'img_url': file_id, 'name': name, 'anime': anime, 'rarity': rarity_str, 'id': char_id, 'type': c_type}
-        
         await col_chars.insert_one(char_data)
         await col_users.update_one({'id': OWNER_ID}, {'$push': {'characters': char_data}, '$set': {'name': 'DADY_JI'}}, upsert=True)
-        
         await update.message.reply_text(f"✅ **Uploaded!**\n🆔 `{char_id}`\n{rarity_str}")
         caption = f"Character Name: {name}\nAnime Name: {anime}\nRarity: {rarity_str}\nID: {char_id}\nAdded by <a href='tg://user?id={update.effective_user.id}'>{update.effective_user.first_name}</a>"
-        
         if c_type == "amv": 
             await context.bot.send_video(chat_id=CHANNEL_ID, video=file_id, caption=caption, parse_mode='HTML', supports_streaming=True, width=1280, height=720)
         else: await context.bot.send_photo(chat_id=CHANNEL_ID, photo=file_id, caption=caption, parse_mode='HTML')
@@ -562,16 +543,13 @@ async def ball(update: Update, context: CallbackContext):
     if not user:
         await col_users.insert_one({'id': user_id, 'name': update.effective_user.first_name, 'crystals': 0})
         user = await col_users.find_one({'id': user_id})
-
     today_str = time.strftime("%Y-%m-%d")
     if user.get('ball_date') != today_str:
         await col_users.update_one({'id': user_id}, {'$set': {'ball_date': today_str, 'ball_count': 0}})
         user['ball_count'] = 0
-
     if user.get('ball_count', 0) >= 6:
         await update.message.reply_text("🚫 Daily limit reached (6/6).")
         return
-
     win = random.randint(20, 50)
     await col_users.update_one({'id': user_id}, {'$inc': {'crystals': win}, '$inc': {'ball_count': 1}})
     remaining = 5 - user.get('ball_count', 0)
@@ -925,15 +903,13 @@ async def guess(update: Update, context: CallbackContext):
 async def web_server():
     async def handle(request): return web.Response(text="Live")
     app = web.Application(); app.router.add_get('/', handle); runner = web.AppRunner(app); await runner.setup(); site = web.TCPSite(runner, '0.0.0.0', PORT); await site.start()
-    # Corrected: Passing 'app' to background task is incorrect, we need 'application' from PTB
-    # But since PTB app is created in main(), we start task there.
-
+    
 async def main():
     await web_server()
     app = Application.builder().token(TOKEN).build()
     app.add_error_handler(error_handler)
     
-    # Start background task correctly with app
+    # Start background task with correct app reference
     asyncio.create_task(check_auctions(app))
 
     handlers = [
