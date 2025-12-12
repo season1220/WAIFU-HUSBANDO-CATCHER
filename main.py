@@ -69,7 +69,7 @@ RARITY_VALUE = {
     "Royal": 11, "Luxury": 12, "Amv": 13
 }
 
-# --- NEW PRICES (Low = 500, Rest Increased) ---
+# --- NEW PRICES (Low = 500) ---
 SHOP_PRICES = {
     "Low": 500,
     "Medium": 1000,
@@ -270,7 +270,7 @@ async def help_menu(update: Update, context: CallbackContext):
     else: 
         await update.message.reply_text(msg, parse_mode='HTML')
 
-# --- NEW SHOP SYSTEM (GRID EMOJIS) ---
+# --- NEW SHOP SYSTEM (GRID EMOJIS ONLY) ---
 
 async def shop(update: Update, context: CallbackContext):
     user = update.effective_user
@@ -378,6 +378,8 @@ async def shop_callback(update: Update, context: CallbackContext):
              await context.bot.send_video(chat_id=user_id, video=char['img_url'], caption=caption, parse_mode='HTML', supports_streaming=True, width=1280, height=720)
         else:
              await context.bot.send_photo(chat_id=user_id, photo=char['img_url'], caption=caption, parse_mode='HTML')
+        
+        # Refresh the shop UI
         await shop_callback(update, context)
 
     elif data == "shop_refresh":
