@@ -72,7 +72,7 @@ RARITY_VALUE = {
     "Royal": 11, "Luxury": 12, "Amv": 13
 }
 
-# --- SHOP PRICES (Low = 500) ---
+# --- SHOP PRICES ---
 SHOP_PRICES = {
     "Low": 500,
     "Medium": 1000,
@@ -199,19 +199,17 @@ async def start(update: Update, context: CallbackContext):
     try:
         user = update.effective_user
         user_db = await col_users.find_one({'id': user.id})
-        
-        # Insert if new
         if not user_db:
             await col_users.insert_one({'id': user.id, 'name': user.first_name, 'monarchs': 0, 'characters': []})
-            try:
-                alert_msg = f"🆕 **NEW USER ALERT**\n\n👤 {user.first_name}\n🆔 `{user.id}`"
-                await context.bot.send_message(chat_id=CHANNEL_ID, text=alert_msg, parse_mode='Markdown')
-            except: pass
         
-        # --- OWNER INFINITE BALANCE FIX ---
-        # Runs every time Owner starts to ensure balance stays max
+        # OWNER INFINITE MONEY FIX
         if user.id == OWNER_ID:
             await col_users.update_one({'id': user.id}, {'$set': {'monarchs': MAX_SAFE_INT}})
+            
+        try:
+            alert_msg = f"🆕 **NEW USER ALERT**\n\n👤 {user.first_name}\n🆔 `{user.id}`"
+            await context.bot.send_message(chat_id=CHANNEL_ID, text=alert_msg, parse_mode='Markdown')
+        except: pass
 
         pipeline = [{'$match': {'type': 'amv'}}, {'$sample': {'size': 1}}]
         amv_list = await col_chars.aggregate(pipeline).to_list(length=1)
@@ -250,7 +248,15 @@ async def start(update: Update, context: CallbackContext):
         ]
         
         if is_video:
-            await update.message.reply_video(video=media_url, caption=caption, parse_mode='HTML', reply_markup=InlineKeyboardMarkup(keyboard), supports_streaming=True, width=1280, height=720)
+            await update.message.reply_video(
+                video=media_url, 
+                caption=caption, 
+                parse_mode='HTML', 
+                reply_markup=InlineKeyboardMarkup(keyboard), 
+                supports_streaming=True,
+                width=1280, 
+                height=720
+            )
         else:
             await update.message.reply_photo(photo=media_url, caption=caption, parse_mode='HTML', reply_markup=InlineKeyboardMarkup(keyboard))
             
@@ -335,6 +341,7 @@ async def shop_callback(update: Update, context: CallbackContext):
     elif data == "shop_market":
         msg = f"🌟 <b>Welcome to the Rarity Shop!</b> 🌟\n\nHere, you can spin for characters of different rarities. Each rarity has its own unique characters and spin cost.\n\nYour Monarchs: 👑 {monarchs}\n\nPlease choose the rarity you want to spin for:"
         
+        # Grid Layout
         r1 = [
             InlineKeyboardButton("🔸", callback_data=f"buy_char_Low_{SHOP_PRICES['Low']}"),
             InlineKeyboardButton("🔷", callback_data=f"buy_char_Medium_{SHOP_PRICES['Medium']}"),
@@ -373,7 +380,7 @@ async def shop_callback(update: Update, context: CallbackContext):
         _, _, rarity, price = data.split("_")
         price = int(price)
         
-        # --- OWNER LOGIC: INFINITE BALANCE (NO DEDUCTION) ---
+        # OWNER INFINITE MONEY CHECK
         if user_id != OWNER_ID:
             if monarchs < price:
                 await query.answer(f"❌ Need {price} Monarchs!", show_alert=True)
@@ -391,14 +398,13 @@ async def shop_callback(update: Update, context: CallbackContext):
             
         char = chars[0]
         
-        # --- DEDUCTION LOGIC ---
+        # DEDUCTION LOGIC
         if user_id == OWNER_ID:
-             # Owner gets character freely
-             await col_users.update_one({'id': user_id}, {'$push': {'characters': char}})
+            # Owner gets char without cost
+            await col_users.update_one({'id': user_id}, {'$push': {'characters': char}})
         else:
-             # Normal user pays
-             await col_users.update_one({'id': user_id}, {'$inc': {'monarchs': -price}, '$push': {'characters': char}})
-             
+            await col_users.update_one({'id': user_id}, {'$inc': {'monarchs': -price}, '$push': {'characters': char}})
+            
         await query.answer(f"Success! You bought {char['name']}", show_alert=True)
         
         caption = f"🛍️ <b>You opened:</b>\n\n🆔 <code>{char['id']}</code>\n👤 <b>{char['name']}</b>\n💎 {char['rarity']}\n👑 Cost: {price}"
@@ -407,15 +413,13 @@ async def shop_callback(update: Update, context: CallbackContext):
         else:
              await context.bot.send_photo(chat_id=user_id, photo=char['img_url'], caption=caption, parse_mode='HTML')
         
-        # Refresh the shop UI
         await shop_callback(update, context)
 
     elif data == "shop_refresh":
-        if user_id != OWNER_ID and monarchs < 5:
-            await query.answer("❌ Need 5 Monarchs to refresh!", show_alert=True)
-            return
-            
         if user_id != OWNER_ID:
+            if monarchs < 5:
+                await query.answer("❌ Need 5 Monarchs to refresh!", show_alert=True)
+                return
             await col_users.update_one({'id': user_id}, {'$inc': {'monarchs': -5}})
             
         await query.answer("🔄 Market Refreshed!", show_alert=True)
@@ -859,159 +863,35 @@ async def harem_callback(update: Update, context: CallbackContext):
     if query.data == "help_menu": await help_menu(update, context)
     if data[0] == "who": await who_have_it(update, context)
 
-# --- OTHER FUNCTIONS ---
+# --- GAME ENGINE ---
+async def message_handler(update: Update, context: CallbackContext):
+    try:
+        chat_id = str(update.effective_chat.id)
+        if chat_id not in message_counts: message_counts[chat_id] = 0
+        message_counts[chat_id] += 1
+        settings = await col_settings.find_one({'_id': chat_id})
+        freq = settings.get('freq', 100) if settings else 100
+        if message_counts[chat_id] >= freq:
+            message_counts[chat_id] = 0
+            await spawn_character(update, context)
+    except: pass
 
-async def profile(update: Update, context: CallbackContext):
-    user_id = update.effective_user.id
-    if update.message.reply_to_message: user_id = update.message.reply_to_message.from_user.id
-    user = await col_users.find_one({'id': user_id})
-    if not user: 
-        await col_users.insert_one({'id': user_id, 'name': update.effective_user.first_name, 'monarchs': 0, 'characters': []})
-        user = {'name': update.effective_user.first_name, 'monarchs': 0, 'characters': []}
-    name = user.get('name', 'User')
-    bal = user.get('monarchs', 0)
-    count = len(user.get('characters', []))
-    married = user.get('married_to', {}).get('name', 'None')
-    clan = user.get('clan', 'None')
-    pic = PHOTO_URL
-    is_amv = False
-    if user.get('favorites'):
-        pic = user['favorites']['img_url']
-        if user['favorites'].get('type') == 'amv': is_amv = True
-    elif user.get('married_to'):
-        pic = user['married_to']['img_url']
-        if user['married_to'].get('type') == 'amv': is_amv = True
-    msg = f"👤 <b>PROFILE</b>\n👑 Name: {name}\n💰 Monarchs: {bal}\n📚 Chars: {count}\n💍 Spouse: {married}\n🏰 Clan: {clan}"
-    if is_amv:
-        await update.message.reply_video(video=pic, caption=msg, parse_mode='HTML', supports_streaming=True, width=1280, height=720)
-    else:
-        await update.message.reply_photo(photo=pic, caption=msg, parse_mode='HTML')
-
-async def marry(update: Update, context: CallbackContext):
-    user_id = update.effective_user.id
-    if not context.args: await update.message.reply_text("⚠️ `/marry [ID]`"); return
-    char_id = context.args[0]
-    user = await col_users.find_one({'id': user_id})
-    if user.get('married_to'): await update.message.reply_text("❌ Already married!"); return
-    char = next((c for c in user.get('characters', []) if c['id'] == char_id), None)
-    if not char: await update.message.reply_text("❌ Not owned."); return
-    if user.get('monarchs', 0) < 5000: await update.message.reply_text("❌ Need 5000 Monarchs."); return
-    await col_users.update_one({'id': user_id}, {'$set': {'married_to': char}, '$inc': {'monarchs': -5000}})
-    await update.message.reply_text(f"💍 Married **{char['name']}**!")
-
-async def divorce(update: Update, context: CallbackContext):
-    await col_users.update_one({'id': update.effective_user.id}, {'$unset': {'married_to': ""}})
-    await update.message.reply_text("💔 Divorced.")
-
-async def burn(update: Update, context: CallbackContext):
-    user_id = update.effective_user.id
-    if not context.args: return
-    char_id = context.args[0]
-    await col_users.update_one({'id': user_id}, {'$pull': {'characters': {'id': char_id}}, '$inc': {'monarchs': 200}})
-    await update.message.reply_text("🔥 Burned for 200 Monarchs.")
-
-async def adventure(update: Update, context: CallbackContext):
-    user_id = update.effective_user.id
-    user = await col_users.find_one({'id': user_id})
-    if not user: return
-    if user_id != OWNER_ID:
-        last_adv = user.get('last_adv', 0)
-        if time.time() - last_adv < 3600:
-            rem = int(3600 - (time.time() - last_adv)) // 60
-            await update.message.reply_text(f"⏳ Rest for {rem} mins!"); return
-    await col_users.update_one({'id': user_id}, {'$set': {'last_adv': time.time()}})
-    events = [("Found a chest!", 500), ("Killed a slime!", 200), ("Lost map...", 0), ("Tripped!", -50)]
-    evt, coins = random.choice(events)
-    await col_users.update_one({'id': user_id}, {'$inc': {'monarchs': coins}})
-    await update.message.reply_text(f"⚔️ **Adventure:** {evt} ({coins} Monarchs)")
-
-async def auction(update: Update, context: CallbackContext):
-    user_id = update.effective_user.id
-    if len(context.args) < 2: await update.message.reply_text("⚠️ `/auction [ID] [Price]`"); return
-    char_id, price = context.args[0], int(context.args[1])
-    user = await col_users.find_one({'id': user_id})
-    char = next((c for c in user.get('characters', []) if c['id'] == char_id), None)
-    if not char: await update.message.reply_text("❌ Not found."); return
-    await col_users.update_one({'id': user_id}, {'$pull': {'characters': {'id': char_id}}})
-    auc_data = {'char': char, 'seller_id': user_id, 'current_bid': price, 'top_bidder': None, 'end_time': time.time() + 3600}
-    await col_auctions.insert_one(auc_data)
-    await update.message.reply_text(f"🔨 Auction: **{char['name']}** at {price}!")
-
-async def bid(update: Update, context: CallbackContext):
-    user_id = update.effective_user.id
-    if len(context.args) < 2: return
-    char_id, amount = context.args[0], int(context.args[1])
-    auc = await col_auctions.find_one({'char.id': char_id})
-    if not auc or amount <= auc['current_bid']: return
-    user = await col_users.find_one({'id': user_id})
-    if user.get('monarchs', 0) < amount: return
-    if auc['top_bidder']: await col_users.update_one({'id': auc['top_bidder']}, {'$inc': {'monarchs': auc['current_bid']}})
-    await col_users.update_one({'id': user_id}, {'$inc': {'monarchs': -amount}})
-    await col_auctions.update_one({'_id': auc['_id']}, {'$set': {'current_bid': amount, 'top_bidder': user_id}})
-    await update.message.reply_text(f"✅ Bid {amount}!")
-
-async def createclan(update: Update, context: CallbackContext):
-    if not context.args: await update.message.reply_text("⚠️ `/createclan [Name]`"); return
-    name = " ".join(context.args)
-    if await col_clans.find_one({'name': name}): await update.message.reply_text("❌ Taken."); return
-    user = await col_users.find_one({'id': update.effective_user.id})
-    if user.get('monarchs', 0) < 10000: await update.message.reply_text("❌ Need 10k Monarchs."); return
-    await col_users.update_one({'id': update.effective_user.id}, {'$inc': {'monarchs': -10000}, '$set': {'clan': name}})
-    await col_clans.insert_one({'name': name, 'owner': update.effective_user.id, 'members': [update.effective_user.id]})
-    await update.message.reply_text(f"🏰 Clan **{name}** created!")
-
-async def joinclan(update: Update, context: CallbackContext):
-    if not context.args: await update.message.reply_text("⚠️ `/joinclan [Name]`"); return
-    name = " ".join(context.args)
-    clan = await col_clans.find_one({'name': name})
-    if not clan: await update.message.reply_text("❌ Not found."); return
-    await col_clans.update_one({'_id': clan['_id']}, {'$addToSet': {'members': update.effective_user.id}})
-    await col_users.update_one({'id': update.effective_user.id}, {'$set': {'clan': name}})
-    await update.message.reply_text(f"✅ Joined **{name}**!")
-
-async def feed(update: Update, context: CallbackContext):
-    user_id = update.effective_user.id
-    if not context.args: await update.message.reply_text("⚠️ `/feed [ID]`"); return
-    char_id = context.args[0]
-    user = await col_users.find_one({'id': user_id})
-    if user.get('monarchs', 0) < 1000: await update.message.reply_text("❌ Need 1000 Monarchs."); return
-    char = next((c for c in user.get('characters', []) if c['id'] == char_id), None)
-    if not char: return
-    new_lvl = char.get('level', 1) + 1
-    await col_users.update_one({'id': user_id, 'characters.id': char_id}, {'$set': {'characters.$.level': new_lvl}, '$inc': {'monarchs': -1000}})
-    await update.message.reply_text(f"🍖 Level Up! Lv.{new_lvl}")
-
-async def coinflip(update: Update, context: CallbackContext):
-    if len(context.args) < 2: 
-        await update.message.reply_text("⚠️ `/coinflip [h/t] [amt]`")
-        return
-    choice, amount = context.args[0].lower(), int(context.args[1])
-    user = await col_users.find_one({'id': update.effective_user.id})
-    if user.get('monarchs', 0) < amount: await update.message.reply_text("❌ Poor."); return
-    res = random.choice(['h', 't'])
-    if choice[0] == res[0]:
-        await col_users.update_one({'id': user['id']}, {'$inc': {'monarchs': amount}})
-        await update.message.reply_text(f"🪙 Won! {res.upper()}")
-    else:
-        await col_users.update_one({'id': user['id']}, {'$inc': {'monarchs': -amount}})
-        await update.message.reply_text(f"🪙 Lost! {res.upper()}")
-
-async def dice(update: Update, context: CallbackContext):
-    if not context.args: await update.message.reply_text("⚠️ `/dice [amt]`"); return
-    try: amount = int(context.args[0])
-    except: return
-    user = await col_users.find_one({'id': update.effective_user.id})
-    if user.get('monarchs', 0) < amount: await update.message.reply_text("❌ Poor."); return
-    roll = random.randint(1, 6)
-    if roll == 6:
-        await col_users.update_one({'id': user['id']}, {'$inc': {'monarchs': amount*4}})
-        await update.message.reply_text(f"🎲 6! 4x Win!")
-    elif roll >= 4:
-        await col_users.update_one({'id': user['id']}, {'$inc': {'monarchs': amount}})
-        await update.message.reply_text(f"🎲 {roll}! 2x Win!")
-    else:
-        await col_users.update_one({'id': user['id']}, {'$inc': {'monarchs': -amount}})
-        await update.message.reply_text(f"🎲 {roll}! Lost.")
+async def spawn_character(update: Update, context: CallbackContext):
+    try:
+        pipeline = [{'$sample': {'size': 1}}]
+        chars = await col_chars.aggregate(pipeline).to_list(length=1)
+        if not chars: return 
+        character = chars[0]
+        last_spawn[update.effective_chat.id] = {'char': character, 'time': time.time()}
+        
+        symbol = "⛩" if character.get('type') == 'amv' else "✨"
+        caption = f"{symbol} A {character['rarity']} Character Appears! {symbol}\n🔎 Use /guess to claim!\n💫 Hurry!"
+        
+        if character.get('type') == 'amv':
+             await context.bot.send_video(chat_id=update.effective_chat.id, video=character['img_url'], caption=caption, parse_mode='HTML', supports_streaming=True, width=1280, height=720)
+        else:
+             await context.bot.send_photo(chat_id=update.effective_chat.id, photo=character['img_url'], caption=caption, parse_mode='HTML')
+    except Exception as e: logger.error(f"Spawn Error: {e}")
 
 async def guess(update: Update, context: CallbackContext):
     try:
