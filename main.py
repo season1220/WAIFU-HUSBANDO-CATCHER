@@ -270,7 +270,7 @@ async def help_menu(update: Update, context: CallbackContext):
     else: 
         await update.message.reply_text(msg, parse_mode='HTML')
 
-# --- NEW SHOP SYSTEM ---
+# --- NEW SHOP SYSTEM (GRID EMOJIS) ---
 
 async def shop(update: Update, context: CallbackContext):
     user = update.effective_user
@@ -317,33 +317,32 @@ async def shop_callback(update: Update, context: CallbackContext):
         await query.edit_message_caption(caption=msg, parse_mode='HTML', reply_markup=InlineKeyboardMarkup(keyboard))
         
     elif data == "shop_market":
+        # GRID LAYOUT (Only Emojis)
         msg = f"🌟 <b>Welcome to the Rarity Shop!</b> 🌟\n\nHere, you can spin for characters of different rarities. Each rarity has its own unique characters and spin cost.\n\nYour Crystals: 🔮 {crystals}\n\nPlease choose the rarity you want to spin for:"
         
-        # Grid Layout matching requested emojis and rarities
-        # Prices are shown on button to help user know cost
         r1 = [
-            InlineKeyboardButton(f"🔸 {SHOP_PRICES['Low']}", callback_data=f"buy_char_Low_{SHOP_PRICES['Low']}"),
-            InlineKeyboardButton(f"🔷 {SHOP_PRICES['Medium']}", callback_data=f"buy_char_Medium_{SHOP_PRICES['Medium']}"),
-            InlineKeyboardButton(f"♦️ {SHOP_PRICES['High']}", callback_data=f"buy_char_High_{SHOP_PRICES['High']}")
+            InlineKeyboardButton("🔸", callback_data=f"buy_char_Low_{SHOP_PRICES['Low']}"),
+            InlineKeyboardButton("🔷", callback_data=f"buy_char_Medium_{SHOP_PRICES['Medium']}"),
+            InlineKeyboardButton("♦️", callback_data=f"buy_char_High_{SHOP_PRICES['High']}")
         ]
         r2 = [
-            InlineKeyboardButton(f"🔮 {SHOP_PRICES['Special Edition']}", callback_data=f"buy_char_Special Edition_{SHOP_PRICES['Special Edition']}"),
-            InlineKeyboardButton(f"💮 {SHOP_PRICES['Elite Edition']}", callback_data=f"buy_char_Elite Edition_{SHOP_PRICES['Elite Edition']}"),
-            InlineKeyboardButton(f"👑 {SHOP_PRICES['Legendary']}", callback_data=f"buy_char_Legendary_{SHOP_PRICES['Legendary']}")
+            InlineKeyboardButton("🔮", callback_data=f"buy_char_Special Edition_{SHOP_PRICES['Special Edition']}"),
+            InlineKeyboardButton("💮", callback_data=f"buy_char_Elite Edition_{SHOP_PRICES['Elite Edition']}"),
+            InlineKeyboardButton("👑", callback_data=f"buy_char_Legendary_{SHOP_PRICES['Legendary']}")
         ]
         r3 = [
-            InlineKeyboardButton(f"💝 {SHOP_PRICES['Valentine']}", callback_data=f"buy_char_Valentine_{SHOP_PRICES['Valentine']}"),
-            InlineKeyboardButton(f"🎃 {SHOP_PRICES['Halloween']}", callback_data=f"buy_char_Halloween_{SHOP_PRICES['Halloween']}"),
-            InlineKeyboardButton(f"❄️ {SHOP_PRICES['Winter']}", callback_data=f"buy_char_Winter_{SHOP_PRICES['Winter']}")
+            InlineKeyboardButton("💝", callback_data=f"buy_char_Valentine_{SHOP_PRICES['Valentine']}"),
+            InlineKeyboardButton("🎃", callback_data=f"buy_char_Halloween_{SHOP_PRICES['Halloween']}"),
+            InlineKeyboardButton("❄️", callback_data=f"buy_char_Winter_{SHOP_PRICES['Winter']}")
         ]
         r4 = [
-            InlineKeyboardButton(f"🏜 {SHOP_PRICES['Summer']}", callback_data=f"buy_char_Summer_{SHOP_PRICES['Summer']}"),
-            InlineKeyboardButton(f"🎗 {SHOP_PRICES['Royal']}", callback_data=f"buy_char_Royal_{SHOP_PRICES['Royal']}"),
-            InlineKeyboardButton(f"💸 {SHOP_PRICES['Luxury']}", callback_data=f"buy_char_Luxury_{SHOP_PRICES['Luxury']}")
+            InlineKeyboardButton("🏜", callback_data=f"buy_char_Summer_{SHOP_PRICES['Summer']}"),
+            InlineKeyboardButton("🎗", callback_data=f"buy_char_Royal_{SHOP_PRICES['Royal']}"),
+            InlineKeyboardButton("💸", callback_data=f"buy_char_Luxury_{SHOP_PRICES['Luxury']}")
         ]
         r5 = [
-            InlineKeyboardButton(f"⛩ {SHOP_PRICES['Amv']}", callback_data=f"buy_char_Amv_{SHOP_PRICES['Amv']}"),
-            InlineKeyboardButton("🔄", callback_data="shop_refresh")
+            InlineKeyboardButton("⛩", callback_data=f"buy_char_Amv_{SHOP_PRICES['Amv']}"),
+            InlineKeyboardButton("🔄", callback_data="shop_refresh") # Refresh Icon
         ]
         r6 = [
             InlineKeyboardButton("Back to Menu", callback_data="shop_main")
