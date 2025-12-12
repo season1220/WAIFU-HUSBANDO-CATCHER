@@ -262,7 +262,6 @@ async def help_menu(update: Update, context: CallbackContext):
 
 async def shop(update: Update, context: CallbackContext):
     user = update.effective_user
-    # Create HTML Mention
     mention = f"<a href='tg://user?id={user.id}'>{user.first_name}</a>"
     
     msg = f"🛒 <b>Welcome to the Shop, {mention}!</b>\n\nClick below to buy 🔮 Crystals or visit the Character Market 🎪!\n\nDm to Buy anything: @{OWNER_USERNAME}"
@@ -287,7 +286,6 @@ async def shop_callback(update: Update, context: CallbackContext):
     user = query.from_user
     user_id = user.id
     
-    # Create Mention for Callback
     mention = f"<a href='tg://user?id={user.id}'>{user.first_name}</a>"
     
     user_db = await col_users.find_one({'id': user_id})
@@ -927,12 +925,17 @@ async def guess(update: Update, context: CallbackContext):
 async def web_server():
     async def handle(request): return web.Response(text="Live")
     app = web.Application(); app.router.add_get('/', handle); runner = web.AppRunner(app); await runner.setup(); site = web.TCPSite(runner, '0.0.0.0', PORT); await site.start()
-    asyncio.create_task(check_auctions(app))
+    # Corrected: Passing 'app' to background task is incorrect, we need 'application' from PTB
+    # But since PTB app is created in main(), we start task there.
 
 async def main():
     await web_server()
     app = Application.builder().token(TOKEN).build()
     app.add_error_handler(error_handler)
+    
+    # Start background task correctly with app
+    asyncio.create_task(check_auctions(app))
+
     handlers = [
         CommandHandler("start", start), CommandHandler("rupload", rupload), CommandHandler("addshop", addshop),
         CommandHandler("delete", delete), CommandHandler("changetime", changetime), CommandHandler("bcast", bcast),
